@@ -105,7 +105,8 @@ app.post('/api/nc', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-// Listar todas NCs (com filtros)
+
+// Listar todas NCs (com saldo_atual calculado e agregação de SubNCs/NEs)
 app.get('/api/ncs', async (req, res) => {
   const { ug_id, prazo, pi, responsavel } = req.query;
   let sql = 'SELECT * FROM nota_credito WHERE 1=1';
@@ -116,12 +117,51 @@ app.get('/api/ncs', async (req, res) => {
   if (responsavel) { sql += ' AND responsavel = $' + (params.length + 1); params.push(responsavel); }
   sql += ' ORDER BY dataInclusao DESC';
   try {
-    const { rows } = await pool.query(sql, params);
-    res.json(rows);
+    // Busca NCs
+    const { rows: ncs } = await pool.query(sql, params);
+    // Busca SubNCs e NEs para cada NC
+    const ncIds = ncs.map(nc => nc.id);
+    let subncs = [], nes = [];
+    if (ncIds.length) {
+      // Busca todos SubNCs das NCs
+      const { rows: subRows } = await pool.query(
+        'SELECT * FROM subnc WHERE nc_id = ANY($1::int[]) ORDER BY data DESC',
+        [ncIds]
+      );
+      subncs = subRows;
+      // Busca todas NEs das NCs
+      const { rows: neRows } = await pool.query(
+        'SELECT * FROM nota_empenho WHERE nc_id = ANY($1::int[]) ORDER BY dataInclusao DESC',
+        [ncIds]
+      );
+      nes = neRows;
+    }
+    // Agrega subnc/nes por NC e calcula saldo_atual
+    const ncsWithDetails = ncs.map(nc => {
+      const subncsForNc = subncs.filter(sub => sub.nc_id === nc.id);
+      const nesForNc = nes.filter(ne => ne.nc_id === nc.id);
+
+      // soma dos reforços (SubNCs)
+      const totalSubnc = subncsForNc.reduce((acc, sub) => acc.plus(new Decimal(sub.valor)), new Decimal(0));
+      // soma dos empenhos (NEs)
+      const totalNe = nesForNc.reduce((acc, ne) => acc.plus(new Decimal(ne.valor)), new Decimal(0));
+
+      // Saldo = valor original + SubNCs - NEs
+      const saldoAtual = new Decimal(nc.valor).plus(totalSubnc).minus(totalNe);
+
+      return {
+        ...nc,
+        subncs: subncsForNc,
+        nes: nesForNc,
+        saldo_atual: saldoAtual.toFixed(2)
+      };
+    });
+    res.json(ncsWithDetails);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
 // Buscar NC por ID
 app.get('/api/nc/:id', async (req, res) => {
   const { id } = req.params;
@@ -155,6 +195,65 @@ app.delete('/api/nc/:id', async (req, res) => {
   const { id } = req.params;
   try {
     await pool.query('DELETE FROM nota_credito WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ================== SubNC (Reforço de NC) ==================
+// Adicionar SubNC
+app.post('/api/nc/:id/subnc', async (req, res) => {
+  const nc_id = req.params.id;
+  const { nc, data, desc, valor } = req.body;
+  // Tabela subnc: id, nc_id, nc, data, desc, valor
+  const query = `
+    INSERT INTO subnc (nc_id, nc, data, desc, valor)
+    VALUES ($1, $2, $3, $4, $5)
+    RETURNING *
+  `;
+  const values = [nc_id, nc, data, desc, valor];
+  try {
+    const { rows } = await pool.query(query, values);
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+app.get('/api/nc/:id/subncs', async (req, res) => {
+  const nc_id = req.params.id;
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM subnc WHERE nc_id = $1 ORDER BY data DESC',
+      [nc_id]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+// Editar SubNC
+app.put('/api/nc/:id/subnc/:subncId', async (req, res) => {
+  const { id, subncId } = req.params;
+  const { nc, data, desc, valor } = req.body;
+  const query = `
+    UPDATE subnc SET nc = $1, data = $2, desc = $3, valor = $4
+    WHERE id = $5 AND nc_id = $6
+    RETURNING *
+  `;
+  const values = [nc, data, desc, valor, subncId, id];
+  try {
+    const { rows } = await pool.query(query, values);
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+// Excluir SubNC
+app.delete('/api/nc/:id/subnc/:subncId', async (req, res) => {
+  const { id, subncId } = req.params;
+  try {
+    await pool.query('DELETE FROM subnc WHERE id = $1 AND nc_id = $2', [subncId, id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
