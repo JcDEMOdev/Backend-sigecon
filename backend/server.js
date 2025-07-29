@@ -109,54 +109,46 @@ app.post('/api/nc', async (req, res) => {
 // Listar todas NCs (com saldo_atual calculado e agregação de SubNCs/NEs)
 app.get('/api/ncs', async (req, res) => {
   const { ug_id, prazo, pi, responsavel } = req.query;
-  let sql = 'SELECT * FROM nota_credito WHERE 1=1';
-  const params = [];
-  if (ug_id) { sql += ' AND ug_id = $' + (params.length + 1); params.push(ug_id); }
-  if (prazo) { sql += ' AND prazo = $' + (params.length + 1); params.push(prazo); }
-  if (pi) { sql += ' AND pi = $' + (params.length + 1); params.push(pi); }
-  if (responsavel) { sql += ' AND responsavel = $' + (params.length + 1); params.push(responsavel); }
-  sql += ' ORDER BY dataInclusao DESC';
+  let filter = [];
+  let params = [];
+  if (ug_id) { filter.push('nc.ug_id = $' + (params.length+1)); params.push(ug_id); }
+  if (prazo) { filter.push('nc.prazo = $' + (params.length+1)); params.push(prazo); }
+  if (pi) { filter.push('nc.pi = $' + (params.length+1)); params.push(pi); }
+  if (responsavel) { filter.push('nc.responsavel = $' + (params.length+1)); params.push(responsavel); }
+  let where = filter.length ? 'WHERE ' + filter.join(' AND ') : '';
+
+  // Consulta agregada
+  const query = `
+    SELECT 
+      nc.*,
+      COALESCE(
+        (SELECT json_agg(subnc) FROM subnc WHERE subnc.nc_id = nc.id ORDER BY data DESC),
+        '[]'
+      ) AS subncs,
+      COALESCE(
+        (SELECT json_agg(ne) FROM nota_empenho ne WHERE ne.nc_id = nc.id ORDER BY dataInclusao DESC),
+        '[]'
+      ) AS nes
+    FROM nota_credito nc
+    ${where}
+    ORDER BY nc.dataInclusao DESC
+  `;
   try {
-    // Busca NCs
-    const { rows: ncs } = await pool.query(sql, params);
-    // Busca SubNCs e NEs para cada NC
-    const ncIds = ncs.map(nc => nc.id);
-    let subncs = [], nes = [];
-    if (ncIds.length) {
-      // Busca todos SubNCs das NCs
-      const { rows: subRows } = await pool.query(
-        'SELECT * FROM subnc WHERE nc_id = ANY($1::int[]) ORDER BY data DESC',
-        [ncIds]
-      );
-      subncs = subRows;
-      // Busca todas NEs das NCs
-      const { rows: neRows } = await pool.query(
-        'SELECT * FROM nota_empenho WHERE nc_id = ANY($1::int[]) ORDER BY dataInclusao DESC',
-        [ncIds]
-      );
-      nes = neRows;
-    }
-    // Agrega subnc/nes por NC e calcula saldo_atual
-    const ncsWithDetails = ncs.map(nc => {
-      const subncsForNc = subncs.filter(sub => sub.nc_id === nc.id);
-      const nesForNc = nes.filter(ne => ne.nc_id === nc.id);
-
-      // soma dos reforços (SubNCs)
-      const totalSubnc = subncsForNc.reduce((acc, sub) => acc.plus(new Decimal(sub.valor)), new Decimal(0));
-      // soma dos empenhos (NEs)
-      const totalNe = nesForNc.reduce((acc, ne) => acc.plus(new Decimal(ne.valor)), new Decimal(0));
-
-      // Saldo = valor original + SubNCs - NEs
-      const saldoAtual = new Decimal(nc.valor).plus(totalSubnc).minus(totalNe);
-
+    const { rows } = await pool.query(query, params);
+    // saldo calculado em JS para garantir precisão
+    const result = rows.map(nc => {
+      const subncs = nc.subncs || [];
+      const nes = nc.nes || [];
+      const totalSubnc = subncs.reduce((acc, sub) => acc.plus(new Decimal(sub.valor)), new Decimal(0));
+      const totalNe = nes.reduce((acc, ne) => acc.plus(new Decimal(ne.valor)), new Decimal(0));
       return {
         ...nc,
-        subncs: subncsForNc,
-        nes: nesForNc,
-        saldo_atual: saldoAtual.toFixed(2)
+        subncs,
+        nes,
+        saldo_atual: new Decimal(nc.valor).plus(totalSubnc).minus(totalNe).toFixed(2)
       };
     });
-    res.json(ncsWithDetails);
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
