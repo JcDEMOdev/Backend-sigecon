@@ -257,7 +257,7 @@ app.delete('/api/nc/:id/subnc/:subncId', async (req, res) => {
 // ================== Nota de Empenho (NE) ==================
 
 // Criar NE vinculada à NC
-app.post('/api/ne', async (req, res) => {
+app.post('/api/nes', async (req, res) => {
   const { nc_id, numero, cnpj, valor, req: reqNe, nup } = req.body;
   const query = `
     INSERT INTO nota_empenho (nc_id, numero, cnpj, valor, req, nup, dataInclusao)
@@ -284,7 +284,7 @@ app.get('/api/nes', async (req, res) => {
 });
 
 // Buscar NE por ID
-app.get('/api/ne/:id', async (req, res) => {
+app.get('/api/nes/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const { rows } = await pool.query('SELECT * FROM nota_empenho WHERE id = $1', [id]);
@@ -306,7 +306,7 @@ app.get('/api/nes/nc/:nc_id', async (req, res) => {
 });
 
 // Editar NE
-app.put('/api/ne/:id', async (req, res) => {
+app.put('/api/nes/:id', async (req, res) => {
   const { id } = req.params;
   const { nc_id, numero, cnpj, valor, req: reqNe, nup } = req.body;
   const query = `
@@ -324,7 +324,7 @@ app.put('/api/ne/:id', async (req, res) => {
 });
 
 // Excluir NE
-app.delete('/api/ne/:id', async (req, res) => {
+app.delete('/api/nes/:id', async (req, res) => {
   const { id } = req.params;
   try {
     await pool.query('DELETE FROM nota_empenho WHERE id = $1', [id]);
@@ -335,7 +335,7 @@ app.delete('/api/ne/:id', async (req, res) => {
 });
 
 // Reforço em NE
-app.post('/api/ne/reforco', async (req, res) => {
+app.post('/api/nes/reforco', async (req, res) => {
   const { ne_id, valor } = req.body;
   const query = `
     UPDATE nota_empenho SET valor = valor + $2 WHERE id = $1 RETURNING *
@@ -349,7 +349,7 @@ app.post('/api/ne/reforco', async (req, res) => {
 });
 
 // Anulação em NE
-app.post('/api/ne/anulacao', async (req, res) => {
+app.post('/api/nes/anulacao', async (req, res) => {
   const { ne_id, valor } = req.body;
   const query = `
     UPDATE nota_empenho SET valor = valor - $2 WHERE id = $1 RETURNING *
