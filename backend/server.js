@@ -148,7 +148,6 @@ app.get('/api/ncs', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
 
 // Buscar NC por ID
 app.get('/api/nc/:id', async (req, res) => {
