@@ -112,16 +112,23 @@ app.get('/api/ncs', async (req, res) => {
     SELECT 
       nc.*,
       COALESCE(
-        (SELECT json_agg(subnc) FROM subnc WHERE subnc.nc_id = nc.id ORDER BY data DESC),
-        '[]'
-      ) AS subncs,
-      COALESCE(
         (SELECT json_agg(ne) FROM nota_empenho ne WHERE ne.nc_id = nc.id ORDER BY dataInclusao DESC),
         '[]'
       ) AS nes
     FROM nota_credito nc
     ORDER BY nc.dataInclusao DESC
   `;
+  try {
+    const { rows } = await pool.query(query);
+    const result = rows.map(nc => {
+      const nes = typeof nc.nes === 'string' ? JSON.parse(nc.nes) : (nc.nes || []);
+      return { ...nc, nes };
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
   try {
     const { rows } = await pool.query(query);
     // Garante arrays reais mesmo se vierem como string (evita bug de serialização)
