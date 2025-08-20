@@ -1,5 +1,4 @@
 // SIGECON Backend Unificado - Express + Neon/Postgres
-// Integra todas as funcionalidades das suas versões antigas e novas
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -42,6 +41,7 @@ function formatBRL(value) {
 }
 
 // ================== UG (Unidade Gestora) ==================
+
 // Criar UG
 app.post('/api/ug', async (req, res) => {
   const { nome } = req.body;
@@ -52,6 +52,7 @@ app.post('/api/ug', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 // Listar UGs
 app.get('/api/ugs', async (req, res) => {
   try {
@@ -61,6 +62,7 @@ app.get('/api/ugs', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 // Editar UG
 app.put('/api/ug/:id', async (req, res) => {
   const { id } = req.params;
@@ -72,6 +74,7 @@ app.put('/api/ug/:id', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 // Excluir UG
 app.delete('/api/ug/:id', async (req, res) => {
   const { id } = req.params;
@@ -87,6 +90,7 @@ app.delete('/api/ug/:id', async (req, res) => {
 });
 
 // ================== Nota de Crédito (NC) ==================
+
 // Criar NC
 app.post('/api/nc', async (req, res) => {
   const { ug_id, numero, data_emissao, descricao, prazo, nd, esfera, ptres, fonte, pi, responsavel, valor } = req.body;
@@ -106,11 +110,15 @@ app.post('/api/nc', async (req, res) => {
   }
 });
 
-// Listar todas NCs (com saldo_atual calculado e agregação de SubNCs/NEs)
+// Listar todas NCs (com saldo_atual, subncs e nes agregados)
 app.get('/api/ncs', async (req, res) => {
   const query = `
     SELECT 
       nc.*,
+      COALESCE(
+        (SELECT json_agg(subnc) FROM subnc WHERE subnc.nc_id = nc.id ORDER BY data DESC),
+        '[]'
+      ) AS subncs,
       COALESCE(
         (SELECT json_agg(ne) FROM nota_empenho ne WHERE ne.nc_id = nc.id ORDER BY dataInclusao DESC),
         '[]'
@@ -121,22 +129,11 @@ app.get('/api/ncs', async (req, res) => {
   try {
     const { rows } = await pool.query(query);
     const result = rows.map(nc => {
-      const nes = typeof nc.nes === 'string' ? JSON.parse(nc.nes) : (nc.nes || []);
-      return { ...nc, nes };
-    });
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-  try {
-    const { rows } = await pool.query(query);
-    // Garante arrays reais mesmo se vierem como string (evita bug de serialização)
-    const result = rows.map(nc => {
+      // Garante arrays reais mesmo se vierem como string (evita bug de serialização)
       const subncs = typeof nc.subncs === 'string' ? JSON.parse(nc.subncs) : (nc.subncs || []);
       const nes = typeof nc.nes === 'string' ? JSON.parse(nc.nes) : (nc.nes || []);
-      const totalSubnc = subncs.reduce((acc, sub) => acc.plus(new Decimal(sub.valor)), new Decimal(0));
-      const totalNe = nes.reduce((acc, ne) => acc.plus(new Decimal(ne.valor)), new Decimal(0));
+      const totalSubnc = Array.isArray(subncs) ? subncs.reduce((acc, sub) => acc.plus(new Decimal(sub.valor)), new Decimal(0)) : new Decimal(0);
+      const totalNe = Array.isArray(nes) ? nes.reduce((acc, ne) => acc.plus(new Decimal(ne.valor)), new Decimal(0)) : new Decimal(0);
       return {
         ...nc,
         subncs,
@@ -148,6 +145,7 @@ app.get('/api/ncs', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
 
 // Buscar NC por ID
 app.get('/api/nc/:id', async (req, res) => {
@@ -159,6 +157,7 @@ app.get('/api/nc/:id', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 // Editar NC
 app.put('/api/nc/:id', async (req, res) => {
   const { id } = req.params;
@@ -177,6 +176,7 @@ app.put('/api/nc/:id', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 // Excluir NC
 app.delete('/api/nc/:id', async (req, res) => {
   const { id } = req.params;
@@ -189,6 +189,7 @@ app.delete('/api/nc/:id', async (req, res) => {
 });
 
 // ================== SubNC (Reforço de NC) ==================
+
 // Adicionar SubNC
 app.post('/api/nc/:id/subnc', async (req, res) => {
   const nc_id = req.params.id;
@@ -208,6 +209,8 @@ app.post('/api/nc/:id/subnc', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Listar SubNCs de uma NC
 app.get('/api/nc/:id/subncs', async (req, res) => {
   const nc_id = req.params.id;
   try {
@@ -220,6 +223,7 @@ app.get('/api/nc/:id/subncs', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 // Editar SubNC
 app.put('/api/nc/:id/subnc/:subncId', async (req, res) => {
   const { id, subncId } = req.params;
@@ -238,6 +242,7 @@ app.put('/api/nc/:id/subnc/:subncId', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 // Excluir SubNC
 app.delete('/api/nc/:id/subnc/:subncId', async (req, res) => {
   const { id, subncId } = req.params;
@@ -250,6 +255,7 @@ app.delete('/api/nc/:id/subnc/:subncId', async (req, res) => {
 });
 
 // ================== Nota de Empenho (NE) ==================
+
 // Criar NE vinculada à NC
 app.post('/api/ne', async (req, res) => {
   const { nc_id, numero, cnpj, valor, req: reqNe, nup } = req.body;
@@ -266,6 +272,7 @@ app.post('/api/ne', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 // Listar todas NEs
 app.get('/api/nes', async (req, res) => {
   try {
@@ -275,6 +282,7 @@ app.get('/api/nes', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 // Buscar NE por ID
 app.get('/api/ne/:id', async (req, res) => {
   const { id } = req.params;
@@ -285,6 +293,7 @@ app.get('/api/ne/:id', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 // Listar NEs de uma NC
 app.get('/api/nes/nc/:nc_id', async (req, res) => {
   const { nc_id } = req.params;
@@ -295,6 +304,7 @@ app.get('/api/nes/nc/:nc_id', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 // Editar NE
 app.put('/api/ne/:id', async (req, res) => {
   const { id } = req.params;
@@ -312,6 +322,7 @@ app.put('/api/ne/:id', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 // Excluir NE
 app.delete('/api/ne/:id', async (req, res) => {
   const { id } = req.params;
@@ -322,6 +333,7 @@ app.delete('/api/ne/:id', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 // Reforço em NE
 app.post('/api/ne/reforco', async (req, res) => {
   const { ne_id, valor } = req.body;
@@ -335,6 +347,7 @@ app.post('/api/ne/reforco', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 // Anulação em NE
 app.post('/api/ne/anulacao', async (req, res) => {
   const { ne_id, valor } = req.body;
