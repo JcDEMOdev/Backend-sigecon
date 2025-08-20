@@ -108,16 +108,6 @@ app.post('/api/nc', async (req, res) => {
 
 // Listar todas NCs (com saldo_atual calculado e agregação de SubNCs/NEs)
 app.get('/api/ncs', async (req, res) => {
-  const { ug_id, prazo, pi, responsavel } = req.query;
-  let filter = [];
-  let params = [];
-  if (ug_id) { filter.push('nc.ug_id = $' + (params.length+1)); params.push(ug_id); }
-  if (prazo) { filter.push('nc.prazo = $' + (params.length+1)); params.push(prazo); }
-  if (pi) { filter.push('nc.pi = $' + (params.length+1)); params.push(pi); }
-  if (responsavel) { filter.push('nc.responsavel = $' + (params.length+1)); params.push(responsavel); }
-  let where = filter.length ? 'WHERE ' + filter.join(' AND ') : '';
-
-  // Consulta agregada
   const query = `
     SELECT 
       nc.*,
@@ -130,11 +120,10 @@ app.get('/api/ncs', async (req, res) => {
         '[]'
       ) AS nes
     FROM nota_credito nc
-    ${where}
     ORDER BY nc.dataInclusao DESC
   `;
   try {
-    const { rows } = await pool.query(query, params);
+    const { rows } = await pool.query(query);
     // Garante arrays reais mesmo se vierem como string (evita bug de serialização)
     const result = rows.map(nc => {
       const subncs = typeof nc.subncs === 'string' ? JSON.parse(nc.subncs) : (nc.subncs || []);
