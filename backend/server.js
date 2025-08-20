@@ -135,10 +135,10 @@ app.get('/api/ncs', async (req, res) => {
   `;
   try {
     const { rows } = await pool.query(query, params);
-    // saldo calculado em JS para garantir precisão
+    // Garante arrays reais mesmo se vierem como string (evita bug de serialização)
     const result = rows.map(nc => {
-      const subncs = nc.subncs || [];
-      const nes = nc.nes || [];
+      const subncs = typeof nc.subncs === 'string' ? JSON.parse(nc.subncs) : (nc.subncs || []);
+      const nes = typeof nc.nes === 'string' ? JSON.parse(nc.nes) : (nc.nes || []);
       const totalSubnc = subncs.reduce((acc, sub) => acc.plus(new Decimal(sub.valor)), new Decimal(0));
       const totalNe = nes.reduce((acc, ne) => acc.plus(new Decimal(ne.valor)), new Decimal(0));
       return {
@@ -197,14 +197,15 @@ app.delete('/api/nc/:id', async (req, res) => {
 // Adicionar SubNC
 app.post('/api/nc/:id/subnc', async (req, res) => {
   const nc_id = req.params.id;
-  const { nc, data, descricao, valor } = req.body;
-  // Tabela subnc: id, nc_id, nc, data, descricao, valor
+  // Aceita tanto "desc" (frontend antigo) quanto "descricao" (backend novo)
+  const { nc, data, desc, descricao, valor } = req.body;
+  const descFinal = desc || descricao || '';
   const query = `
     INSERT INTO subnc (nc_id, nc, data, descricao, valor)
     VALUES ($1, $2, $3, $4, $5)
     RETURNING *
   `;
-  const values = [nc_id, nc, data, descricao, valor];
+  const values = [nc_id, nc, data, descFinal, valor];
   try {
     const { rows } = await pool.query(query, values);
     res.json(rows[0]);
@@ -227,13 +228,14 @@ app.get('/api/nc/:id/subncs', async (req, res) => {
 // Editar SubNC
 app.put('/api/nc/:id/subnc/:subncId', async (req, res) => {
   const { id, subncId } = req.params;
-  const { nc, data, descricao, valor } = req.body;
+  const { nc, data, desc, descricao, valor } = req.body;
+  const descFinal = desc || descricao || '';
   const query = `
     UPDATE subnc SET nc = $1, data = $2, descricao = $3, valor = $4
     WHERE id = $5 AND nc_id = $6
     RETURNING *
   `;
-  const values = [nc, data, descricao, valor, subncId, id];
+  const values = [nc, data, descFinal, valor, subncId, id];
   try {
     const { rows } = await pool.query(query, values);
     res.json(rows[0]);
