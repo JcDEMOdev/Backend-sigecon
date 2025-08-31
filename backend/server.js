@@ -120,7 +120,7 @@ app.get('/api/ncs', async (req, res) => {
         '[]'
       ) AS subncs,
       COALESCE(
-        (SELECT json_agg(ne) FROM nota_empenho ne WHERE ne.nc_id = nc.id ORDER BY dataInclusao DESC),
+        (SELECT json_agg(ne) FROM nota_empenhos ne WHERE ne.nc_id = nc.id ORDER BY dataInclusao DESC),
         '[]'
       ) AS nes
     FROM nota_credito nc
@@ -260,7 +260,7 @@ app.delete('/api/nc/:id/subnc/:subncId', async (req, res) => {
 app.post('/api/nes', async (req, res) => {
   const { nc_id, numero, cnpj, valor, req: reqNe, nup } = req.body;
   const query = `
-    INSERT INTO nota_empenho (nc_id, numero, cnpj, valor, req, nup, dataInclusao)
+    INSERT INTO nota_empenhos (nc_id, numero, cnpj, valor, req, nup, dataInclusao)
     VALUES ($1, $2, $3, $4, $5, $6, NOW())
     RETURNING *
   `;
@@ -276,7 +276,7 @@ app.post('/api/nes', async (req, res) => {
 // Listar todas NEs
 app.get('/api/nes', async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM nota_empenho ORDER BY dataInclusao DESC');
+    const { rows } = await pool.query('SELECT * FROM nota_empenhos ORDER BY dataInclusao DESC');
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -287,7 +287,7 @@ app.get('/api/nes', async (req, res) => {
 app.get('/api/nes/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const { rows } = await pool.query('SELECT * FROM nota_empenho WHERE id = $1', [id]);
+    const { rows } = await pool.query('SELECT * FROM nota_empenhos WHERE id = $1', [id]);
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -298,7 +298,7 @@ app.get('/api/nes/:id', async (req, res) => {
 app.get('/api/nes/nc/:nc_id', async (req, res) => {
   const { nc_id } = req.params;
   try {
-    const { rows } = await pool.query('SELECT * FROM nota_empenho WHERE nc_id = $1 ORDER BY dataInclusao DESC', [nc_id]);
+    const { rows } = await pool.query('SELECT * FROM nota_empenhos WHERE nc_id = $1 ORDER BY dataInclusao DESC', [nc_id]);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -310,7 +310,7 @@ app.put('/api/nes/:id', async (req, res) => {
   const { id } = req.params;
   const { nc_id, numero, cnpj, valor, req: reqNe, nup } = req.body;
   const query = `
-    UPDATE nota_empenho SET
+    UPDATE nota_empenhos SET
       nc_id = $1, numero = $2, cnpj = $3, valor = $4, req = $5, nup = $6
     WHERE id = $7 RETURNING *
   `;
@@ -327,7 +327,7 @@ app.put('/api/nes/:id', async (req, res) => {
 app.delete('/api/nes/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    await pool.query('DELETE FROM nota_empenho WHERE id = $1', [id]);
+    await pool.query('DELETE FROM nota_empenhos WHERE id = $1', [id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -338,7 +338,7 @@ app.delete('/api/nes/:id', async (req, res) => {
 app.post('/api/nes/reforco', async (req, res) => {
   const { ne_id, valor } = req.body;
   const query = `
-    UPDATE nota_empenho SET valor = valor + $2 WHERE id = $1 RETURNING *
+    UPDATE nota_empenhos SET valor = valor + $2 WHERE id = $1 RETURNING *
   `;
   try {
     const { rows } = await pool.query(query, [ne_id, valor]);
@@ -352,7 +352,7 @@ app.post('/api/nes/reforco', async (req, res) => {
 app.post('/api/nes/anulacao', async (req, res) => {
   const { ne_id, valor } = req.body;
   const query = `
-    UPDATE nota_empenho SET valor = valor - $2 WHERE id = $1 RETURNING *
+    UPDATE nota_empenhos SET valor = valor - $2 WHERE id = $1 RETURNING *
   `;
   try {
     const { rows } = await pool.query(query, [ne_id, valor]);
