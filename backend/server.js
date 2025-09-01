@@ -116,16 +116,34 @@ app.get('/api/ncs', async (req, res) => {
     SELECT 
       nc.*,
       COALESCE(
-        (SELECT json_agg(subnc) FROM subnc WHERE subnc.nc_id = nc.id ORDER BY data DESC),
+        (
+          SELECT json_agg(s) 
+          FROM (
+            SELECT * FROM subnc WHERE subnc.nc_id = nc.id ORDER BY data DESC
+          ) s
+        ),
         '[]'
       ) AS subncs,
       COALESCE(
-        (SELECT json_agg(ne) FROM nota_empenhos ne WHERE ne.nc_id = nc.id ORDER BY dataInclusao DESC),
+        (
+          SELECT json_agg(n) 
+          FROM (
+            SELECT * FROM nota_empenhos n WHERE n.nc_id = nc.id ORDER BY dataInclusao DESC
+          ) n
+        ),
         '[]'
       ) AS nes
     FROM nota_credito nc
     ORDER BY nc.dataInclusao DESC
   `;
+  try {
+    const { rows } = await pool.query(query);
+    // ... o resto do seu código
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
   try {
     const { rows } = await pool.query(query);
     const result = rows.map(nc => {
@@ -144,8 +162,7 @@ app.get('/api/ncs', async (req, res) => {
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
-  }
-});
+  };
 
 // Buscar NC por ID
 app.get('/api/nc/:id', async (req, res) => {
