@@ -1,9 +1,14 @@
-// SIGECON Backend Unificado - Express + Neon/Postgres
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const { Pool } = require('pg');
-const Decimal = require('decimal.js');
+// SIGECON Backend Unificado - Express + Neon/Postgres (ESM version)
+// Para rodar: garanta que seu package.json tem "type": "module"
+// Ou use require() e remova "type": "module" para CommonJS
+
+import dotenv from 'dotenv';
+dotenv.config();
+import express from 'express';
+import cors from 'cors';
+import pkg from 'pg';
+const { Pool } = pkg;
+import Decimal from 'decimal.js';
 
 const app = express();
 app.use(cors());
@@ -138,14 +143,6 @@ app.get('/api/ncs', async (req, res) => {
   `;
   try {
     const { rows } = await pool.query(query);
-    // ... o resto do seu código
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-  try {
-    const { rows } = await pool.query(query);
     const result = rows.map(nc => {
       // Garante arrays reais mesmo se vierem como string (evita bug de serialização)
       const subncs = typeof nc.subncs === 'string' ? JSON.parse(nc.subncs) : (nc.subncs || []);
@@ -162,7 +159,8 @@ app.get('/api/ncs', async (req, res) => {
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
-  };
+  }
+});
 
 // Buscar NC por ID
 app.get('/api/nc/:id', async (req, res) => {
