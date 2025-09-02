@@ -115,32 +115,50 @@ app.post('/api/nc', async (req, res) => {
   }
 });
 
+import Decimal from 'decimal.js';
+
 // Listar todas NCs (com saldo_atual, subncs e nes agregados)
 app.get('/api/ncs', async (req, res) => {
   const query = `
     SELECT 
       nc.*,
-      COALESCE(
-        (
-          SELECT json_agg(s) 
-          FROM (
-            SELECT * FROM subnc WHERE subnc.nc_id = nc.id ORDER BY data DESC
-          ) s
-        ),
-        '[]'
-      ) AS subncs,
-      COALESCE(
-        (
-          SELECT json_agg(n) 
-          FROM (
-            SELECT * FROM nota_empenhos n WHERE n.nc_id = nc.id ORDER BY dataInclusao DESC
-          ) n
-        ),
-        '[]'
-      ) AS nes
+      COALESCE(subncs.subncs, '[]') AS subncs,
+      COALESCE(nes.nes, '[]') AS nes
     FROM nota_credito nc
+    LEFT JOIN LATERAL (
+      SELECT json_agg(s ORDER BY s.data DESC) AS subncs
+      FROM subnc s WHERE s.nc_id = nc.id
+    ) subncs ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT json_agg(n ORDER BY n.dataInclusao DESC) AS nes
+      FROM nota_empenhos n WHERE n.nc_id = nc.id
+    ) nes ON TRUE
     ORDER BY nc.dataInclusao DESC
   `;
+  try {
+    const { rows } = await pool.query(query);
+    const result = rows.map(nc => {
+      // Garante arrays reais mesmo se vierem como string (evita bug de serialização)
+      const subncs = Array.isArray(nc.subncs) ? nc.subncs : JSON.parse(nc.subncs || "[]");
+      const nes = Array.isArray(nc.nes) ? nc.nes : JSON.parse(nc.nes || "[]");
+
+      // Soma dos valores de subncs e nes (sempre Decimal)
+      const totalSubnc = subncs.reduce((acc, sub) => acc.plus(new Decimal(sub.valor || 0)), new Decimal(0));
+      const totalNe = nes.reduce((acc, ne) => acc.plus(new Decimal(ne.valor || 0)), new Decimal(0));
+
+      return {
+        ...nc,
+        subncs,
+        nes,
+        saldo_atual: new Decimal(nc.valor || 0).plus(totalSubnc).minus(totalNe).toFixed(2)
+      };
+    });
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
   try {
     const { rows } = await pool.query(query);
     const result = rows.map(nc => {
@@ -159,8 +177,7 @@ app.get('/api/ncs', async (req, res) => {
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
-  }
-});
+  };
 
 // Buscar NC por ID
 app.get('/api/nc/:id', async (req, res) => {
