@@ -116,6 +116,7 @@ app.post('/api/nc', async (req, res) => {
 });
 
 // Listar todas NCs (com saldo_atual, subncs e nes agregados)
+// Esta versão é mais robusta e anti-erros: garante sempre arrays, lida com null/undefined, e converte valores corretamente
 app.get('/api/ncs', async (req, res) => {
   const query = `
     SELECT 
@@ -133,6 +134,46 @@ app.get('/api/ncs', async (req, res) => {
     ) nes ON TRUE
     ORDER BY nc.dataInclusao DESC
   `;
+  try {
+    const { rows } = await pool.query(query);
+    const result = rows.map(nc => {
+      // Garante arrays reais, mesmo se vier string (bug de serialização em alguns drivers)
+      let subncs = [];
+      let nes = [];
+      try {
+        subncs = Array.isArray(nc.subncs) ? nc.subncs : JSON.parse(nc.subncs || "[]");
+      } catch { subncs = []; }
+      try {
+        nes = Array.isArray(nc.nes) ? nc.nes : JSON.parse(nc.nes || "[]");
+      } catch { nes = []; }
+
+      // Soma dos valores (robusto: trata null/undefined/NaN)
+      const totalSubnc = subncs.reduce((acc, sub) => {
+        const v = (sub && sub.valor) ? Number(sub.valor) : 0;
+        return acc + (isNaN(v) ? 0 : v);
+      }, 0);
+      const totalNe = nes.reduce((acc, ne) => {
+        const v = (ne && ne.valor) ? Number(ne.valor) : 0;
+        return acc + (isNaN(v) ? 0 : v);
+      }, 0);
+      const valorNC = nc.valor ? Number(nc.valor) : 0;
+
+      // saldo_atual robusto
+      const saldo_atual = (isNaN(valorNC) ? 0 : valorNC) + totalSubnc - totalNe;
+
+      return {
+        ...nc,
+        subncs,
+        nes,
+        saldo_atual: saldo_atual.toFixed(2)
+      };
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('Erro em /api/ncs:', err);
+    res.status(500).json({ error: err.message });
+  };
+  
   try {
     const { rows } = await pool.query(query);
     const result = rows.map(nc => {
