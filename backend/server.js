@@ -115,7 +115,6 @@ app.post('/api/nc', async (req, res) => {
   }
 });
 
-import Decimal from 'decimal.js';
 
 // Listar todas NCs (com saldo_atual, subncs e nes agregados)
 app.get('/api/ncs', async (req, res) => {
