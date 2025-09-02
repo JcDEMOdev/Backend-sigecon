@@ -9,10 +9,39 @@ import cors from 'cors';
 import pkg from 'pg';
 const { Pool } = pkg;
 import Decimal from 'decimal.js';
+import fs from 'fs';
+import path from 'path';
 
+// ================== LOGS DE REQUISIÇÃO E ERRO ==================
+
+// Cria um write stream para salvar logs em arquivo (opcional)
+const logFile = fs.createWriteStream(path.resolve('sigecon-server.log'), { flags: 'a' });
+
+// Middleware para logar todas as requisições
+function requestLogger(req, res, next) {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    const log = `[${new Date().toISOString()}] ${req.method} ${req.originalUrl} - ${res.statusCode} - ${duration}ms\n`;
+    process.stdout.write(log);
+    logFile.write(log);
+  });
+  next();
+}
+
+// Middleware para logar todos os erros não tratados
+function errorLogger(err, req, res, next) {
+  const log = `[${new Date().toISOString()}] ERRO: ${err.stack || err.message}\n`;
+  process.stderr.write(log);
+  logFile.write(log);
+  next(err);
+}
+
+// ================== APP ==================
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(requestLogger); // Middleware de log de requisições
 
 // Configuração do banco Neon/Postgres
 const pool = new Pool({
@@ -54,6 +83,7 @@ app.post('/api/ug', async (req, res) => {
     const { rows } = await pool.query('INSERT INTO unidade_gestora (nome) VALUES ($1) RETURNING *', [nome]);
     res.json(rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -64,6 +94,7 @@ app.get('/api/ugs', async (req, res) => {
     const { rows } = await pool.query('SELECT * FROM unidade_gestora ORDER BY nome ASC');
     res.json(rows);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -76,6 +107,7 @@ app.put('/api/ug/:id', async (req, res) => {
     const { rows } = await pool.query('UPDATE unidade_gestora SET nome = $1 WHERE id = $2 RETURNING *', [nome, id]);
     res.json(rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -90,6 +122,7 @@ app.delete('/api/ug/:id', async (req, res) => {
     await pool.query('DELETE FROM unidade_gestora WHERE id = $1', [id]);
     res.json({ success: true });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -111,6 +144,7 @@ app.post('/api/nc', async (req, res) => {
     const { rows } = await pool.query(query, values);
     res.json(rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -158,6 +192,7 @@ app.get('/api/ncs', async (req, res) => {
     });
     res.json(result);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -169,6 +204,7 @@ app.get('/api/nc/:id', async (req, res) => {
     const { rows } = await pool.query('SELECT * FROM nota_credito WHERE id = $1', [id]);
     res.json(rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -188,6 +224,7 @@ app.put('/api/nc/:id', async (req, res) => {
     const { rows } = await pool.query(query, values);
     res.json(rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -199,6 +236,7 @@ app.delete('/api/nc/:id', async (req, res) => {
     await pool.query('DELETE FROM nota_credito WHERE id = $1', [id]);
     res.json({ success: true });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -221,6 +259,7 @@ app.post('/api/nc/:id/subnc', async (req, res) => {
     const { rows } = await pool.query(query, values);
     res.json(rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -235,6 +274,7 @@ app.get('/api/nc/:id/subncs', async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -254,6 +294,7 @@ app.put('/api/nc/:id/subnc/:subncId', async (req, res) => {
     const { rows } = await pool.query(query, values);
     res.json(rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -265,6 +306,7 @@ app.delete('/api/nc/:id/subnc/:subncId', async (req, res) => {
     await pool.query('DELETE FROM subnc WHERE id = $1 AND nc_id = $2', [subncId, id]);
     res.json({ success: true });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -284,6 +326,7 @@ app.post('/api/nes', async (req, res) => {
     const { rows } = await pool.query(query, values);
     res.json(rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -294,6 +337,7 @@ app.get('/api/nes', async (req, res) => {
     const { rows } = await pool.query('SELECT * FROM nota_empenhos ORDER BY dataInclusao DESC');
     res.json(rows);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -305,6 +349,7 @@ app.get('/api/nes/:id', async (req, res) => {
     const { rows } = await pool.query('SELECT * FROM nota_empenhos WHERE id = $1', [id]);
     res.json(rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -316,6 +361,7 @@ app.get('/api/nes/nc/:nc_id', async (req, res) => {
     const { rows } = await pool.query('SELECT * FROM nota_empenhos WHERE nc_id = $1 ORDER BY dataInclusao DESC', [nc_id]);
     res.json(rows);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -334,6 +380,7 @@ app.put('/api/nes/:id', async (req, res) => {
     const { rows } = await pool.query(query, values);
     res.json(rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -345,6 +392,7 @@ app.delete('/api/nes/:id', async (req, res) => {
     await pool.query('DELETE FROM nota_empenhos WHERE id = $1', [id]);
     res.json({ success: true });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -359,6 +407,7 @@ app.post('/api/nes/reforco', async (req, res) => {
     const { rows } = await pool.query(query, [ne_id, valor]);
     res.json(rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -373,6 +422,7 @@ app.post('/api/nes/anulacao', async (req, res) => {
     const { rows } = await pool.query(query, [ne_id, valor]);
     res.json(rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -389,6 +439,7 @@ app.get('/api/grafico-por-ug', async (req, res) => {
     const { rows } = await pool.query(query);
     res.json(rows);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -403,9 +454,13 @@ app.get('/api/saldo-ug/:ug_id', async (req, res) => {
     );
     res.json({ total: rows[0]?.total || 0 });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
+
+// ================== Middleware para logar erros ==================
+app.use(errorLogger);
 
 // ================== Inicialização do servidor ==================
 const PORT = process.env.PORT || 3000;
