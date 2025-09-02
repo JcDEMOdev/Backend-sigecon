@@ -115,7 +115,6 @@ app.post('/api/nc', async (req, res) => {
   }
 });
 
-
 // Listar todas NCs (com saldo_atual, subncs e nes agregados)
 app.get('/api/ncs', async (req, res) => {
   const query = `
@@ -158,25 +157,6 @@ app.get('/api/ncs', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-  try {
-    const { rows } = await pool.query(query);
-    const result = rows.map(nc => {
-      // Garante arrays reais mesmo se vierem como string (evita bug de serialização)
-      const subncs = typeof nc.subncs === 'string' ? JSON.parse(nc.subncs) : (nc.subncs || []);
-      const nes = typeof nc.nes === 'string' ? JSON.parse(nc.nes) : (nc.nes || []);
-      const totalSubnc = Array.isArray(subncs) ? subncs.reduce((acc, sub) => acc.plus(new Decimal(sub.valor)), new Decimal(0)) : new Decimal(0);
-      const totalNe = Array.isArray(nes) ? nes.reduce((acc, ne) => acc.plus(new Decimal(ne.valor)), new Decimal(0)) : new Decimal(0);
-      return {
-        ...nc,
-        subncs,
-        nes,
-        saldo_atual: new Decimal(nc.valor).plus(totalSubnc).minus(totalNe).toFixed(2)
-      };
-    });
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  };
 
 // Buscar NC por ID
 app.get('/api/nc/:id', async (req, res) => {
