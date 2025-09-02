@@ -366,19 +366,12 @@ app.post('/api/nes/reforco', async (req, res) => {
 // Anulação em NE
 app.post('/api/nes/anulacao', async (req, res) => {
   const { ne_id, valor } = req.body;
+  const query = `
+    UPDATE nota_empenhos SET valor = valor - $2 WHERE id = $1 RETURNING *
+  `;
   try {
-    // Busca o valor atual da NE
-    const { rows } = await pool.query('SELECT valor FROM nota_empenhos WHERE id = $1', [ne_id]);
-    if (!rows.length) return res.status(404).json({ error: 'NE não encontrada.' });
-    const valorAtual = Number(rows[0].valor);
-    if (valor > valorAtual) return res.status(400).json({ error: 'Valor de anulação maior que o valor atual da NE.' });
-
-    // Faz a anulação
-    const query = `
-      UPDATE nota_empenhos SET valor = valor - $2 WHERE id = $1 RETURNING *
-    `;
-    const { rows: updated } = await pool.query(query, [ne_id, valor]);
-    res.json(updated[0]);
+    const { rows } = await pool.query(query, [ne_id, valor]);
+    res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
