@@ -459,6 +459,29 @@ app.get('/api/saldo-ug/:ug_id', async (req, res) => {
   }
 });
 
+// ================== Relatório de SubNCs por NC (com dados da NC) ==================
+app.get('/api/relatorio-subnc', async (req, res) => {
+  const query = `
+    SELECT
+      nc.id as nc_id,
+      nc.numero as numero_nc,
+      nc.descricao as descricao_nc,
+      MAX(subnc.data) as data_mais_recente,
+      SUM(subnc.valor) as total_reforco
+    FROM nota_credito nc
+    JOIN subnc ON subnc.nc_id = nc.id
+    GROUP BY nc.id, nc.numero, nc.descricao
+    ORDER BY nc.id
+  `;
+  try {
+    const { rows } = await pool.query(query);
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ================== Middleware para logar erros ==================
 app.use(errorLogger);
 
