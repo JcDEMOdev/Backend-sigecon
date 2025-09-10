@@ -14,14 +14,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Configuração do banco Neon/Postgres
+// ================== CONFIGURAÇÃO DO BANCO NEON/POSTGRES ==================
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL ||
     'postgresql://neondb_owner:npg_8cDPnmrpoJ4B@ep-crimson-mode-aejyyt5m-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require',
   ssl: { rejectUnauthorized: false, require: true }
 });
 
-// ================== Utilidade Moeda BRL ==================
+// ================== UTILIDADE MOEDA BRL ==================
 function unformatBRL(val) {
   if (val instanceof Decimal) return val;
   if (typeof val === "number") return new Decimal(val);
@@ -116,7 +116,6 @@ app.post('/api/nc', async (req, res) => {
 });
 
 // Listar todas NCs (com saldo_atual, subncs e nes agregados)
-// Esta versão é mais robusta e anti-erros: garante sempre arrays, lida com null/undefined, e converte valores corretamente
 app.get('/api/ncs', async (req, res) => {
   const query = `
     SELECT 
@@ -137,54 +136,10 @@ app.get('/api/ncs', async (req, res) => {
   try {
     const { rows } = await pool.query(query);
     const result = rows.map(nc => {
-      // Garante arrays reais, mesmo se vier string (bug de serialização em alguns drivers)
-      let subncs = [];
-      let nes = [];
-      try {
-        subncs = Array.isArray(nc.subncs) ? nc.subncs : JSON.parse(nc.subncs || "[]");
-      } catch { subncs = []; }
-      try {
-        nes = Array.isArray(nc.nes) ? nc.nes : JSON.parse(nc.nes || "[]");
-      } catch { nes = []; }
-
-      // Soma dos valores (robusto: trata null/undefined/NaN)
-      const totalSubnc = subncs.reduce((acc, sub) => {
-        const v = (sub && sub.valor) ? Number(sub.valor) : 0;
-        return acc + (isNaN(v) ? 0 : v);
-      }, 0);
-      const totalNe = nes.reduce((acc, ne) => {
-        const v = (ne && ne.valor) ? Number(ne.valor) : 0;
-        return acc + (isNaN(v) ? 0 : v);
-      }, 0);
-      const valorNC = nc.valor ? Number(nc.valor) : 0;
-
-      // saldo_atual robusto
-      const saldo_atual = (isNaN(valorNC) ? 0 : valorNC) + totalSubnc - totalNe;
-
-      return {
-        ...nc,
-        subncs,
-        nes,
-        saldo_atual: saldo_atual.toFixed(2)
-      };
-    });
-    res.json(result);
-  } catch (err) {
-    console.error('Erro em /api/ncs:', err);
-    res.status(500).json({ error: err.message });
-  };
-  
-  try {
-    const { rows } = await pool.query(query);
-    const result = rows.map(nc => {
-      // Garante arrays reais mesmo se vierem como string (evita bug de serialização)
       const subncs = Array.isArray(nc.subncs) ? nc.subncs : JSON.parse(nc.subncs || "[]");
       const nes = Array.isArray(nc.nes) ? nc.nes : JSON.parse(nc.nes || "[]");
-
-      // Soma dos valores de subncs e nes (sempre Decimal)
       const totalSubnc = subncs.reduce((acc, sub) => acc.plus(new Decimal(sub.valor || 0)), new Decimal(0));
       const totalNe = nes.reduce((acc, ne) => acc.plus(new Decimal(ne.valor || 0)), new Decimal(0));
-
       return {
         ...nc,
         subncs,
@@ -194,7 +149,7 @@ app.get('/api/ncs', async (req, res) => {
     });
     res.json(result);
   } catch (err) {
-    console.error(err);
+    console.error('Erro em /api/ncs:', err);
     res.status(500).json({ error: err.message });
   }
 });
