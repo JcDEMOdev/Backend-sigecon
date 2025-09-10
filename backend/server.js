@@ -136,8 +136,14 @@ app.get('/api/ncs', async (req, res) => {
   try {
     const { rows } = await pool.query(query);
     const result = rows.map(nc => {
-      const subncs = Array.isArray(nc.subncs) ? nc.subncs : JSON.parse(nc.subncs || "[]");
-      const nes = Array.isArray(nc.nes) ? nc.nes : JSON.parse(nc.nes || "[]");
+      let subncs = [];
+      let nes = [];
+      try {
+        subncs = Array.isArray(nc.subncs) ? nc.subncs : JSON.parse(nc.subncs || "[]");
+      } catch { subncs = []; }
+      try {
+        nes = Array.isArray(nc.nes) ? nc.nes : JSON.parse(nc.nes || "[]");
+      } catch { nes = []; }
       const totalSubnc = subncs.reduce((acc, sub) => acc.plus(new Decimal(sub.valor || 0)), new Decimal(0));
       const totalNe = nes.reduce((acc, ne) => acc.plus(new Decimal(ne.valor || 0)), new Decimal(0));
       return {
@@ -150,6 +156,51 @@ app.get('/api/ncs', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('Erro em /api/ncs:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Listar todas NCs (com saldo_atual, subncs e nes agregados) - endpoint alternativo caso frontend utilize "/api/ncs1"
+app.get('/api/ncs1', async (req, res) => {
+  const query = `
+    SELECT 
+      nc.*,
+      COALESCE(subncs.subncs, '[]') AS subncs,
+      COALESCE(nes.nes, '[]') AS nes
+    FROM nota_credito nc
+    LEFT JOIN LATERAL (
+      SELECT json_agg(s ORDER BY s.data DESC) AS subncs
+      FROM subnc s WHERE s.nc_id = nc.id
+    ) subncs ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT json_agg(n ORDER BY n.dataInclusao DESC) AS nes
+      FROM nota_empenhos n WHERE n.nc_id = nc.id
+    ) nes ON TRUE
+    ORDER BY nc.dataInclusao DESC
+  `;
+  try {
+    const { rows } = await pool.query(query);
+    const result = rows.map(nc => {
+      let subncs = [];
+      let nes = [];
+      try {
+        subncs = Array.isArray(nc.subncs) ? nc.subncs : JSON.parse(nc.subncs || "[]");
+      } catch { subncs = []; }
+      try {
+        nes = Array.isArray(nc.nes) ? nc.nes : JSON.parse(nc.nes || "[]");
+      } catch { nes = []; }
+      const totalSubnc = subncs.reduce((acc, sub) => acc.plus(new Decimal(sub.valor || 0)), new Decimal(0));
+      const totalNe = nes.reduce((acc, ne) => acc.plus(new Decimal(ne.valor || 0)), new Decimal(0));
+      return {
+        ...nc,
+        subncs,
+        nes,
+        saldo_atual: new Decimal(nc.valor || 0).plus(totalSubnc).minus(totalNe).toFixed(2)
+      };
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('Erro em /api/ncs1:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -200,7 +251,6 @@ app.delete('/api/nc/:id', async (req, res) => {
 // Adicionar SubNC
 app.post('/api/nc/:id/subnc', async (req, res) => {
   const nc_id = req.params.id;
-  // Aceita tanto "desc" (frontend antigo) quanto "descricao" (backend novo)
   const { nc, data, desc, descricao, valor } = req.body;
   const descFinal = desc || descricao || '';
   const query = `
