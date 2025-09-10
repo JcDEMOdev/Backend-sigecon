@@ -1,6 +1,5 @@
 // SIGECON Backend Unificado - Express + Neon/Postgres (ESM version)
-// Para rodar: garanta que seu package.json tem "type": "module"
-// Ou use require() e remova "type": "module" para CommonJS
+// Todas as rotas NC (Nota de Crédito) padronizadas para /api/nota_credito
 
 import dotenv from 'dotenv';
 dotenv.config();
@@ -96,8 +95,8 @@ app.delete('/api/ug/:id', async (req, res) => {
 
 // ================== Nota de Crédito (NC) ==================
 
-// Criar NC
-app.post('/api/nc', async (req, res) => {
+// Criar Nota de Crédito
+app.post('/api/nota_credito', async (req, res) => {
   const { ug_id, numero, data_emissao, descricao, prazo, nd, esfera, ptres, fonte, pi, responsavel, valor } = req.body;
   const query = `
     INSERT INTO nota_credito (
@@ -115,8 +114,8 @@ app.post('/api/nc', async (req, res) => {
   }
 });
 
-// Listar todas NCs (com saldo_atual, subncs e nes agregados)
-app.get('/api/ncs', async (req, res) => {
+// Listar todas Notas de Crédito
+app.get('/api/nota_credito', async (req, res) => {
   const query = `
     SELECT 
       nc.*,
@@ -155,58 +154,13 @@ app.get('/api/ncs', async (req, res) => {
     });
     res.json(result);
   } catch (err) {
-    console.error('Erro em /api/ncs:', err);
+    console.error('Erro em /api/nota_credito:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Listar todas NCs (com saldo_atual, subncs e nes agregados) - endpoint alternativo caso frontend utilize "/api/ncs1"
-app.get('/api/ncs1', async (req, res) => {
-  const query = `
-    SELECT 
-      nc.*,
-      COALESCE(subncs.subncs, '[]') AS subncs,
-      COALESCE(nes.nes, '[]') AS nes
-    FROM nota_credito nc
-    LEFT JOIN LATERAL (
-      SELECT json_agg(s ORDER BY s.data DESC) AS subncs
-      FROM subnc s WHERE s.nc_id = nc.id
-    ) subncs ON TRUE
-    LEFT JOIN LATERAL (
-      SELECT json_agg(n ORDER BY n.dataInclusao DESC) AS nes
-      FROM nota_empenhos n WHERE n.nc_id = nc.id
-    ) nes ON TRUE
-    ORDER BY nc.dataInclusao DESC
-  `;
-  try {
-    const { rows } = await pool.query(query);
-    const result = rows.map(nc => {
-      let subncs = [];
-      let nes = [];
-      try {
-        subncs = Array.isArray(nc.subncs) ? nc.subncs : JSON.parse(nc.subncs || "[]");
-      } catch { subncs = []; }
-      try {
-        nes = Array.isArray(nc.nes) ? nc.nes : JSON.parse(nc.nes || "[]");
-      } catch { nes = []; }
-      const totalSubnc = subncs.reduce((acc, sub) => acc.plus(new Decimal(sub.valor || 0)), new Decimal(0));
-      const totalNe = nes.reduce((acc, ne) => acc.plus(new Decimal(ne.valor || 0)), new Decimal(0));
-      return {
-        ...nc,
-        subncs,
-        nes,
-        saldo_atual: new Decimal(nc.valor || 0).plus(totalSubnc).minus(totalNe).toFixed(2)
-      };
-    });
-    res.json(result);
-  } catch (err) {
-    console.error('Erro em /api/ncs1:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Buscar NC por ID
-app.get('/api/nc/:id', async (req, res) => {
+// Buscar Nota de Crédito por ID
+app.get('/api/nota_credito/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const { rows } = await pool.query('SELECT * FROM nota_credito WHERE id = $1', [id]);
@@ -216,8 +170,8 @@ app.get('/api/nc/:id', async (req, res) => {
   }
 });
 
-// Editar NC
-app.put('/api/nc/:id', async (req, res) => {
+// Editar Nota de Crédito
+app.put('/api/nota_credito/:id', async (req, res) => {
   const { id } = req.params;
   const { ug_id, numero, data_emissao, descricao, prazo, nd, esfera, ptres, fonte, pi, responsavel, valor } = req.body;
   const query = `
@@ -235,8 +189,8 @@ app.put('/api/nc/:id', async (req, res) => {
   }
 });
 
-// Excluir NC
-app.delete('/api/nc/:id', async (req, res) => {
+// Excluir Nota de Crédito
+app.delete('/api/nota_credito/:id', async (req, res) => {
   const { id } = req.params;
   try {
     await pool.query('DELETE FROM nota_credito WHERE id = $1', [id]);
@@ -249,7 +203,7 @@ app.delete('/api/nc/:id', async (req, res) => {
 // ================== SubNC (Reforço de NC) ==================
 
 // Adicionar SubNC
-app.post('/api/nc/:id/subnc', async (req, res) => {
+app.post('/api/nota_credito/:id/subnc', async (req, res) => {
   const nc_id = req.params.id;
   const { nc, data, desc, descricao, valor } = req.body;
   const descFinal = desc || descricao || '';
@@ -268,7 +222,7 @@ app.post('/api/nc/:id/subnc', async (req, res) => {
 });
 
 // Listar SubNCs de uma NC
-app.get('/api/nc/:id/subncs', async (req, res) => {
+app.get('/api/nota_credito/:id/subncs', async (req, res) => {
   const nc_id = req.params.id;
   try {
     const { rows } = await pool.query(
@@ -282,7 +236,7 @@ app.get('/api/nc/:id/subncs', async (req, res) => {
 });
 
 // Editar SubNC
-app.put('/api/nc/:id/subnc/:subncId', async (req, res) => {
+app.put('/api/nota_credito/:id/subnc/:subncId', async (req, res) => {
   const { id, subncId } = req.params;
   const { nc, data, desc, descricao, valor } = req.body;
   const descFinal = desc || descricao || '';
@@ -301,7 +255,7 @@ app.put('/api/nc/:id/subnc/:subncId', async (req, res) => {
 });
 
 // Excluir SubNC
-app.delete('/api/nc/:id/subnc/:subncId', async (req, res) => {
+app.delete('/api/nota_credito/:id/subnc/:subncId', async (req, res) => {
   const { id, subncId } = req.params;
   try {
     await pool.query('DELETE FROM subnc WHERE id = $1 AND nc_id = $2', [subncId, id]);
