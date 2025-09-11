@@ -357,20 +357,30 @@ app.delete('/api/nes/:id', async (req, res) => {
 //   data TIMESTAMP NOT NULL DEFAULT NOW()
 // );
 
-// Listar lançamentos de uma NE
+// Listar lançamentos de uma NE (normaliza tipo para lanc-reforco/lanc-anulacao)
 app.get('/api/nes/:ne_id/lancamentos', async (req, res) => {
   const { ne_id } = req.params;
   try {
     const { rows } = await pool.query(
       'SELECT * FROM ne_lancamentos WHERE ne_id = $1 ORDER BY data ASC', [ne_id]);
-    res.json(rows);
+    // Normaliza tipo para "lanc-reforco"/"lanc-anulacao" no retorno
+    const result = rows.map(lanc => ({
+      ...lanc,
+      tipo: lanc.tipo === 'reforco' ? 'lanc-reforco'
+           : lanc.tipo === 'anulacao' ? 'lanc-anulacao'
+           : lanc.tipo
+    }));
+    res.json(result);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Adicionar lançamento (reforço/anulação) em uma NE
+// Adicionar lançamento (reforço/anulação) em uma NE (aceita tipo lanc-reforco/lanc-anulacao)
 app.post('/api/nes/:ne_id/lancamentos', async (req, res) => {
   const { ne_id } = req.params;
-  const { tipo, valor, descricao } = req.body;
+  let { tipo, valor, descricao } = req.body;
+  // Normaliza possíveis nomes vindos do frontend
+  if (tipo === 'lanc-reforco') tipo = 'reforco';
+  if (tipo === 'lanc-anulacao') tipo = 'anulacao';
   if (!ne_id || !tipo || !valor) return res.status(400).json({ error: 'Campos obrigatórios: ne_id, tipo, valor.' });
   if (!['reforco','anulacao'].includes(tipo)) return res.status(400).json({ error: 'Tipo inválido.' });
   try {
@@ -387,11 +397,18 @@ app.post('/api/nes/:ne_id/lancamentos', async (req, res) => {
     );
     // Busca NE atualizada
     const { rows: neRows } = await pool.query('SELECT * FROM nota_empenhos WHERE id = $1', [ne_id]);
-    res.json({ lancamento: lancRows[0], ne: neRows[0] });
+    // Normaliza tipo no retorno
+    const lancRet = {
+      ...lancRows[0],
+      tipo: lancRows[0].tipo === 'reforco' ? 'lanc-reforco'
+           : lancRows[0].tipo === 'anulacao' ? 'lanc-anulacao'
+           : lancRows[0].tipo
+    };
+    res.json({ lancamento: lancRet, ne: neRows[0] });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Excluir lançamento de NE (e recalcula valor da NE)
+// Excluir lançamento de NE (e recalcula valor da NE, normaliza tipo no retorno)
 app.delete('/api/nes/:ne_id/lancamentos/:lanc_id', async (req, res) => {
   const { ne_id, lanc_id } = req.params;
   try {
@@ -410,7 +427,11 @@ app.delete('/api/nes/:ne_id/lancamentos/:lanc_id', async (req, res) => {
     );
     // Busca NE atualizada
     const { rows: neRows } = await pool.query('SELECT * FROM nota_empenhos WHERE id = $1', [ne_id]);
-    res.json({ success: true, ne: neRows[0] });
+    // Normaliza tipo no retorno
+    const lancTipo = lanc.tipo === 'reforco' ? 'lanc-reforco'
+                   : lanc.tipo === 'anulacao' ? 'lanc-anulacao'
+                   : lanc.tipo;
+    res.json({ success: true, ne: neRows[0], tipo: lancTipo });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
