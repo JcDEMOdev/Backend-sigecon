@@ -114,7 +114,7 @@ app.post('/api/nota_credito', async (req, res) => {
   }
 });
 
-// Listar todas Notas de Crédito
+// Listar todas Notas de Crédito (AGORA COM LANCAMENTOS EMBUTIDOS NAS NEs)
 app.get('/api/nota_credito', async (req, res) => {
   const query = `
     SELECT 
@@ -134,7 +134,8 @@ app.get('/api/nota_credito', async (req, res) => {
   `;
   try {
     const { rows } = await pool.query(query);
-    const result = rows.map(nc => {
+    // Adiciona os lançamentos embutidos em cada NE
+    const result = await Promise.all(rows.map(async nc => {
       let subncs = [];
       let nes = [];
       try {
@@ -143,6 +144,19 @@ app.get('/api/nota_credito', async (req, res) => {
       try {
         nes = Array.isArray(nc.nes) ? nc.nes : JSON.parse(nc.nes || "[]");
       } catch { nes = []; }
+      // Embute lançamentos em cada NE
+      for (const ne of nes) {
+        try {
+          const { rows: lancs } = await pool.query(
+            'SELECT * FROM ne_lancamentos WHERE ne_id = $1 ORDER BY data ASC', [ne.id]);
+          ne.lancamentos = lancs.map(lanc => ({
+            ...lanc,
+            tipo: lanc.tipo === 'reforco' ? 'lanc-reforco'
+                 : lanc.tipo === 'anulacao' ? 'lanc-anulacao'
+                 : lanc.tipo
+          }));
+        } catch { ne.lancamentos = []; }
+      }
       const totalSubnc = subncs.reduce((acc, sub) => acc.plus(new Decimal(sub.valor || 0)), new Decimal(0));
       const totalNe = nes.reduce((acc, ne) => acc.plus(new Decimal(ne.valor || 0)), new Decimal(0));
       return {
@@ -151,7 +165,7 @@ app.get('/api/nota_credito', async (req, res) => {
         nes,
         saldo_atual: new Decimal(nc.valor || 0).plus(totalSubnc).minus(totalNe).toFixed(2)
       };
-    });
+    }));
     res.json(result);
   } catch (err) {
     console.error('Erro em /api/nota_credito:', err);
