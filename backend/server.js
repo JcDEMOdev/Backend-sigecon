@@ -157,8 +157,19 @@ app.get('/api/nota_credito', async (req, res) => {
           }));
         } catch { ne.lancamentos = []; }
       }
+      // Calcule o total das NEs considerando reforços/anulações
       const totalSubnc = subncs.reduce((acc, sub) => acc.plus(new Decimal(sub.valor || 0)), new Decimal(0));
-      const totalNe = nes.reduce((acc, ne) => acc.plus(new Decimal(ne.valor || 0)), new Decimal(0));
+      let totalNe = new Decimal(0);
+      nes.forEach(ne => {
+        let neTotal = new Decimal(ne.valor || 0);
+        if (Array.isArray(ne.lancamentos)) {
+          ne.lancamentos.forEach(lanc => {
+            if (lanc.tipo === 'lanc-reforco') neTotal = neTotal.plus(lanc.valor);
+            if (lanc.tipo === 'lanc-anulacao') neTotal = neTotal.minus(lanc.valor);
+          });
+        }
+        totalNe = totalNe.plus(neTotal);
+      });
       return {
         ...nc,
         subncs,
@@ -388,7 +399,7 @@ app.get('/api/nes/:ne_id/lancamentos', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Adicionar lançamento (reforço/anulação) em uma NE (aceita tipo lanc-reforco/lanc-anulacao)
+// Adicionar lançamento (reforço/anulação) em uma NE (corrigido: NÃO altera valor da NE!)
 app.post('/api/nes/:ne_id/lancamentos', async (req, res) => {
   const { ne_id } = req.params;
   let { tipo, valor, descricao } = req.body;
@@ -398,16 +409,10 @@ app.post('/api/nes/:ne_id/lancamentos', async (req, res) => {
   if (!ne_id || !tipo || !valor) return res.status(400).json({ error: 'Campos obrigatórios: ne_id, tipo, valor.' });
   if (!['reforco','anulacao'].includes(tipo)) return res.status(400).json({ error: 'Tipo inválido.' });
   try {
-    // Insere lançamento
+    // Insere lançamento (NÃO altera valor da NE!)
     const { rows: lancRows } = await pool.query(
       'INSERT INTO ne_lancamentos (ne_id, tipo, valor, descricao) VALUES ($1, $2, $3, $4) RETURNING *',
       [ne_id, tipo, valor, descricao || null]
-    );
-    // Atualiza valor da NE (soma reforços, subtrai anulações)
-    const sinal = tipo === 'reforco' ? '+' : '-';
-    await pool.query(
-      `UPDATE nota_empenhos SET valor = valor ${sinal} $1 WHERE id = $2`,
-      [valor, ne_id]
     );
     // Busca NE atualizada
     const { rows: neRows } = await pool.query('SELECT * FROM nota_empenhos WHERE id = $1', [ne_id]);
@@ -422,7 +427,7 @@ app.post('/api/nes/:ne_id/lancamentos', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Excluir lançamento de NE (e recalcula valor da NE, normaliza tipo no retorno)
+// Excluir lançamento de NE (corrigido: NÃO altera valor da NE!)
 app.delete('/api/nes/:ne_id/lancamentos/:lanc_id', async (req, res) => {
   const { ne_id, lanc_id } = req.params;
   try {
@@ -430,21 +435,14 @@ app.delete('/api/nes/:ne_id/lancamentos/:lanc_id', async (req, res) => {
     const { rows: lancRows } = await pool.query(
       'SELECT * FROM ne_lancamentos WHERE id = $1 AND ne_id = $2', [lanc_id, ne_id]);
     if (!lancRows.length) return res.status(404).json({ error: 'Lançamento não encontrado.' });
-    const lanc = lancRows[0];
-    // Remove o lançamento
+    // Remove o lançamento (NÃO altera valor da NE!)
     await pool.query('DELETE FROM ne_lancamentos WHERE id = $1 AND ne_id = $2', [lanc_id, ne_id]);
-    // Corrige o valor da NE (se era reforço, subtrai; se anulação, soma)
-    const sinal = lanc.tipo === 'reforco' ? '-' : '+';
-    await pool.query(
-      `UPDATE nota_empenhos SET valor = valor ${sinal} $1 WHERE id = $2`,
-      [lanc.valor, ne_id]
-    );
     // Busca NE atualizada
     const { rows: neRows } = await pool.query('SELECT * FROM nota_empenhos WHERE id = $1', [ne_id]);
     // Normaliza tipo no retorno
-    const lancTipo = lanc.tipo === 'reforco' ? 'lanc-reforco'
-                   : lanc.tipo === 'anulacao' ? 'lanc-anulacao'
-                   : lanc.tipo;
+    const lancTipo = lancRows[0].tipo === 'reforco' ? 'lanc-reforco'
+                   : lancRows[0].tipo === 'anulacao' ? 'lanc-anulacao'
+                   : lancRows[0].tipo;
     res.json({ success: true, ne: neRows[0], tipo: lancTipo });
   } catch (err) {
     res.status(500).json({ error: err.message });
