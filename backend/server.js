@@ -114,7 +114,7 @@ app.post('/api/nota_credito', async (req, res) => {
   }
 });
 
-// Listar todas Notas de Crédito (AGORA COM LANCAMENTOS EMBUTIDOS NAS NEs)
+// Listar todas Notas de Crédito
 app.get('/api/nota_credito', async (req, res) => {
   const query = `
     SELECT 
@@ -134,8 +134,7 @@ app.get('/api/nota_credito', async (req, res) => {
   `;
   try {
     const { rows } = await pool.query(query);
-    // Adiciona os lançamentos embutidos em cada NE
-    const result = await Promise.all(rows.map(async nc => {
+    const result = rows.map(nc => {
       let subncs = [];
       let nes = [];
       try {
@@ -144,39 +143,15 @@ app.get('/api/nota_credito', async (req, res) => {
       try {
         nes = Array.isArray(nc.nes) ? nc.nes : JSON.parse(nc.nes || "[]");
       } catch { nes = []; }
-      // Embute lançamentos em cada NE
-      for (const ne of nes) {
-        try {
-          const { rows: lancs } = await pool.query(
-            'SELECT * FROM ne_lancamentos WHERE ne_id = $1 ORDER BY data ASC', [ne.id]);
-          ne.lancamentos = lancs.map(lanc => ({
-            ...lanc,
-            tipo: lanc.tipo === 'reforco' ? 'lanc-reforco'
-                 : lanc.tipo === 'anulacao' ? 'lanc-anulacao'
-                 : lanc.tipo
-          }));
-        } catch { ne.lancamentos = []; }
-      }
-      // Calcule o total das NEs considerando reforços/anulações
       const totalSubnc = subncs.reduce((acc, sub) => acc.plus(new Decimal(sub.valor || 0)), new Decimal(0));
-      let totalNe = new Decimal(0);
-      nes.forEach(ne => {
-        let neTotal = new Decimal(ne.valor || 0);
-        if (Array.isArray(ne.lancamentos)) {
-          ne.lancamentos.forEach(lanc => {
-            if (lanc.tipo === 'lanc-reforco') neTotal = neTotal.plus(lanc.valor);
-            if (lanc.tipo === 'lanc-anulacao') neTotal = neTotal.minus(lanc.valor);
-          });
-        }
-        totalNe = totalNe.plus(neTotal);
-      });
+      const totalNe = nes.reduce((acc, ne) => acc.plus(new Decimal(ne.valor || 0)), new Decimal(0));
       return {
         ...nc,
         subncs,
         nes,
         saldo_atual: new Decimal(nc.valor || 0).plus(totalSubnc).minus(totalNe).toFixed(2)
       };
-    }));
+    });
     res.json(result);
   } catch (err) {
     console.error('Erro em /api/nota_credito:', err);
@@ -399,7 +374,7 @@ app.get('/api/nes/:ne_id/lancamentos', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Adicionar lançamento (reforço/anulação) em uma NE (corrigido: NÃO altera valor da NE!)
+// Adicionar lançamento (reforço/anulação) em uma NE (aceita tipo lanc-reforco/lanc-anulacao)
 app.post('/api/nes/:ne_id/lancamentos', async (req, res) => {
   const { ne_id } = req.params;
   let { tipo, valor, descricao } = req.body;
@@ -409,10 +384,16 @@ app.post('/api/nes/:ne_id/lancamentos', async (req, res) => {
   if (!ne_id || !tipo || !valor) return res.status(400).json({ error: 'Campos obrigatórios: ne_id, tipo, valor.' });
   if (!['reforco','anulacao'].includes(tipo)) return res.status(400).json({ error: 'Tipo inválido.' });
   try {
-    // Insere lançamento (NÃO altera valor da NE!)
+    // Insere lançamento
     const { rows: lancRows } = await pool.query(
       'INSERT INTO ne_lancamentos (ne_id, tipo, valor, descricao) VALUES ($1, $2, $3, $4) RETURNING *',
       [ne_id, tipo, valor, descricao || null]
+    );
+    // Atualiza valor da NE (soma reforços, subtrai anulações)
+    const sinal = tipo === 'reforco' ? '+' : '-';
+    await pool.query(
+      `UPDATE nota_empenhos SET valor = valor ${sinal} $1 WHERE id = $2`,
+      [valor, ne_id]
     );
     // Busca NE atualizada
     const { rows: neRows } = await pool.query('SELECT * FROM nota_empenhos WHERE id = $1', [ne_id]);
@@ -427,7 +408,7 @@ app.post('/api/nes/:ne_id/lancamentos', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Excluir lançamento de NE (corrigido: NÃO altera valor da NE!)
+// Excluir lançamento de NE (e recalcula valor da NE, normaliza tipo no retorno)
 app.delete('/api/nes/:ne_id/lancamentos/:lanc_id', async (req, res) => {
   const { ne_id, lanc_id } = req.params;
   try {
@@ -435,14 +416,21 @@ app.delete('/api/nes/:ne_id/lancamentos/:lanc_id', async (req, res) => {
     const { rows: lancRows } = await pool.query(
       'SELECT * FROM ne_lancamentos WHERE id = $1 AND ne_id = $2', [lanc_id, ne_id]);
     if (!lancRows.length) return res.status(404).json({ error: 'Lançamento não encontrado.' });
-    // Remove o lançamento (NÃO altera valor da NE!)
+    const lanc = lancRows[0];
+    // Remove o lançamento
     await pool.query('DELETE FROM ne_lancamentos WHERE id = $1 AND ne_id = $2', [lanc_id, ne_id]);
+    // Corrige o valor da NE (se era reforço, subtrai; se anulação, soma)
+    const sinal = lanc.tipo === 'reforco' ? '-' : '+';
+    await pool.query(
+      `UPDATE nota_empenhos SET valor = valor ${sinal} $1 WHERE id = $2`,
+      [lanc.valor, ne_id]
+    );
     // Busca NE atualizada
     const { rows: neRows } = await pool.query('SELECT * FROM nota_empenhos WHERE id = $1', [ne_id]);
     // Normaliza tipo no retorno
-    const lancTipo = lancRows[0].tipo === 'reforco' ? 'lanc-reforco'
-                   : lancRows[0].tipo === 'anulacao' ? 'lanc-anulacao'
-                   : lancRows[0].tipo;
+    const lancTipo = lanc.tipo === 'reforco' ? 'lanc-reforco'
+                   : lanc.tipo === 'anulacao' ? 'lanc-anulacao'
+                   : lanc.tipo;
     res.json({ success: true, ne: neRows[0], tipo: lancTipo });
   } catch (err) {
     res.status(500).json({ error: err.message });
