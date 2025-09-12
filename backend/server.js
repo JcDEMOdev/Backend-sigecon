@@ -467,7 +467,7 @@ app.get('/api/grafico-por-ug', async (req, res) => {
   }
 });
 
-// ================== Saldos/Diferença SIAFI x SIGECON ==================
+// ================== Saldos / Diferença SIAFI x SIGECON ==================
 app.get('/api/saldo-ug/:ug_id', async (req, res) => {
   const { ug_id } = req.params;
   try {
