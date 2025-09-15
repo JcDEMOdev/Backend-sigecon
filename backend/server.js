@@ -221,9 +221,9 @@ app.delete('/api/nota_credito/:id', async (req, res) => {
 app.post('/api/nota_credito/:id/subnc', async (req, res) => {
   const nc_id = req.params.id;
   const { nc, data, desc, valor } = req.body;
-  const descFinal = desc || desc || '';
+  const descFinal = desc || '';
   const query = `
-    INSERT INTO subnc (nc_id, nc, data, desc, valor)
+    INSERT INTO subnc (nc_id, nc, data, "desc", valor)
     VALUES ($1, $2, $3, $4, $5)
     RETURNING *
   `;
