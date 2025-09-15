@@ -253,10 +253,10 @@ app.get('/api/nota_credito/:id/subncs', async (req, res) => {
 // Editar SubNC
 app.put('/api/nota_credito/:id/subnc/:subncId', async (req, res) => {
   const { id, subncId } = req.params;
-  const { nc, data, desc, descricao, valor } = req.body;
-  const descFinal = desc || descricao || '';
+  const { nc, data, desc, valor } = req.body;
+  const descFinal = desc || desc || '';
   const query = `
-    UPDATE subnc SET nc = $1, data = $2, descricao = $3, valor = $4
+    UPDATE subnc SET nc = $1, data = $2, desc = $3, valor = $4
     WHERE id = $5 AND nc_id = $6
     RETURNING *
   `;
