@@ -223,7 +223,7 @@ app.post('/api/nota_credito/:id/subnc', async (req, res) => {
   const { nc, data, desc, descricao, valor } = req.body;
   const descFinal = desc || descricao || '';
   const query = `
-    INSERT INTO subnc (nc_id, nc, data, descricao, valor)
+    INSERT INTO subnc (nc_id, nc, data_inclusao, data, descricao, valor)
     VALUES ($1, $2, $3, $4, $5)
     RETURNING *
   `;
