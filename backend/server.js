@@ -114,13 +114,14 @@ app.post('/api/nota_credito', async (req, res) => {
   }
 });
 
-// Listar todas Notas de Crédito (AGORA COM LANCAMENTOS EMBUTIDOS NAS NEs)
+// Listar todas Notas de Crédito (AGORA COM LANCAMENTOS EMBUTIDOS NAS NEs E RECOLHIMENTOS)
 app.get('/api/nota_credito', async (req, res) => {
   const query = `
     SELECT 
       nc.*,
       COALESCE(subncs.subncs, '[]') AS subncs,
-      COALESCE(nes.nes, '[]') AS nes
+      COALESCE(nes.nes, '[]') AS nes,
+      COALESCE(recs.recolhimentos, '[]') AS recolhimentos
     FROM nota_credito nc
     LEFT JOIN LATERAL (
       SELECT json_agg(s ORDER BY s.data DESC) AS subncs
@@ -130,6 +131,10 @@ app.get('/api/nota_credito', async (req, res) => {
       SELECT json_agg(n ORDER BY n.dataInclusao DESC) AS nes
       FROM nota_empenhos n WHERE n.nc_id = nc.id
     ) nes ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT json_agg(r ORDER BY r.data DESC) AS recolhimentos
+      FROM recolhimentos r WHERE r.nc_id = nc.id
+    ) recs ON TRUE
     ORDER BY nc.dataInclusao DESC
   `;
   try {
@@ -138,12 +143,16 @@ app.get('/api/nota_credito', async (req, res) => {
     const result = await Promise.all(rows.map(async nc => {
       let subncs = [];
       let nes = [];
+      let recolhimentos = [];
       try {
         subncs = Array.isArray(nc.subncs) ? nc.subncs : JSON.parse(nc.subncs || "[]");
       } catch { subncs = []; }
       try {
         nes = Array.isArray(nc.nes) ? nc.nes : JSON.parse(nc.nes || "[]");
       } catch { nes = []; }
+      try {
+        recolhimentos = Array.isArray(nc.recolhimentos) ? nc.recolhimentos : JSON.parse(nc.recolhimentos || "[]");
+      } catch { recolhimentos = []; }
       // Embute lançamentos em cada NE
       for (const ne of nes) {
         try {
@@ -158,13 +167,18 @@ app.get('/api/nota_credito', async (req, res) => {
         } catch { ne.lancamentos = []; }
       }
       const totalSubnc = subncs.reduce((acc, sub) => acc.plus(new Decimal(sub.valor || 0)), new Decimal(0));
-      // totalNe NÃO deve somar reforços/anulações aqui, só valor original!
       const totalNe = nes.reduce((acc, ne) => acc.plus(new Decimal(ne.valor || 0)), new Decimal(0));
+      const totalRecolhimentos = recolhimentos.reduce((acc, rec) => acc.plus(new Decimal(rec.valor || 0)), new Decimal(0));
       return {
         ...nc,
         subncs,
         nes,
-        saldo_atual: new Decimal(nc.valor || 0).plus(totalSubnc).minus(totalNe).toFixed(2)
+        recolhimentos,
+        saldo_atual: new Decimal(nc.valor || 0)
+                      .plus(totalSubnc)
+                      .minus(totalNe)
+                      .minus(totalRecolhimentos)
+                      .toFixed(2)
       };
     }));
     res.json(result);
@@ -220,10 +234,10 @@ app.delete('/api/nota_credito/:id', async (req, res) => {
 // Adicionar SubNC
 app.post('/api/nota_credito/:id/subnc', async (req, res) => {
   const nc_id = req.params.id;
-  const { nc, data, desc, valor } = req.body;
-  const descFinal = desc || '';
+  const { nc, data, desc, descricao, valor } = req.body;
+  const descFinal = descricao || desc || '';
   const query = `
-    INSERT INTO subnc (nc_id, nc, data, "desc", valor)
+    INSERT INTO subnc (nc_id, nc, data, descricao, valor)
     VALUES ($1, $2, $3, $4, $5)
     RETURNING *
   `;
@@ -254,9 +268,9 @@ app.get('/api/nota_credito/:id/subncs', async (req, res) => {
 app.put('/api/nota_credito/:id/subnc/:subncId', async (req, res) => {
   const { id, subncId } = req.params;
   const { nc, data, desc, descricao, valor } = req.body;
-  const descFinal = desc || descricao || '';
+  const descFinal = descricao || desc || '';
   const query = `
-    UPDATE subnc SET nc = $1, data = $2, "desc" = $3, valor = $4
+    UPDATE subnc SET nc = $1, data = $2, descricao = $3, valor = $4
     WHERE id = $5 AND nc_id = $6
     RETURNING *
   `;
@@ -275,6 +289,69 @@ app.delete('/api/nota_credito/:id/subnc/:subncId', async (req, res) => {
   try {
     await pool.query('DELETE FROM subnc WHERE id = $1 AND nc_id = $2', [subncId, id]);
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ================== RECOLHIMENTOS DE NC ==================
+// === BLOCO ADICIONADO AQUI ===
+
+// Adicionar recolhimento
+app.post('/api/nota_credito/:id/recolhimento', async (req, res) => {
+  const nc_id = req.params.id;
+  const { data, valor, descricao } = req.body;
+  try {
+    const { rows } = await pool.query(
+      'INSERT INTO recolhimentos (nc_id, data, valor, descricao) VALUES ($1, $2, $3, $4) RETURNING *',
+      [nc_id, data, valor, descricao]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Editar recolhimento
+app.put('/api/nota_credito/:id/recolhimento/:rec_id', async (req, res) => {
+  const nc_id = req.params.id;
+  const rec_id = req.params.rec_id;
+  const { data, valor, descricao } = req.body;
+  try {
+    const { rows } = await pool.query(
+      'UPDATE recolhimentos SET data = $1, valor = $2, descricao = $3 WHERE id = $4 AND nc_id = $5 RETURNING *',
+      [data, valor, descricao, rec_id, nc_id]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Excluir recolhimento
+app.delete('/api/nota_credito/:id/recolhimento/:rec_id', async (req, res) => {
+  const nc_id = req.params.id;
+  const rec_id = req.params.rec_id;
+  try {
+    await pool.query(
+      'DELETE FROM recolhimentos WHERE id = $1 AND nc_id = $2',
+      [rec_id, nc_id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Listar recolhimentos de uma NC (opcional)
+app.get('/api/nota_credito/:id/recolhimentos', async (req, res) => {
+  const nc_id = req.params.id;
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM recolhimentos WHERE nc_id = $1 ORDER BY data DESC',
+      [nc_id]
+    );
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
