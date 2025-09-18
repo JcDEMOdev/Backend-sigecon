@@ -120,6 +120,7 @@ app.post('/api/nota_credito', async (req, res) => {
 app.post('/api/nota_credito/:id/recolhimento', async (req, res) => {
   const nc_id = req.params.id;
   const { numero, descricao, valor } = req.body;
+  console.log('RECEBIDO:', { nc_id, numero, descricao, valor }); // debug
   if (!numero || !descricao || !valor) {
     return res.status(400).json({ error: "Campos obrigatórios: numero, descricao, valor" });
   }
@@ -133,6 +134,7 @@ app.post('/api/nota_credito/:id/recolhimento', async (req, res) => {
     const { rows } = await pool.query(query, values);
     res.status(201).json(rows[0]);
   } catch (err) {
+    console.error('ERRO AO INSERIR RECOLHIMENTO:', err); // debug
     res.status(500).json({ error: err.message });
   }
 });
