@@ -552,3 +552,40 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`SIGECON backend rodando na porta ${PORT}`);
 });
+
+// Salvar anexo (PDF) de NC ou NE
+app.post('/api/anexos', async (req, res) => {
+  const { idNota, tipo, nomeArquivo, urlCloudinary } = req.body;
+  if (!idNota || !tipo || !nomeArquivo || !urlCloudinary) {
+    return res.status(400).json({ success: false, error: 'Campos obrigatórios faltando.' });
+  }
+  try {
+    const query = `
+      INSERT INTO anexos (tipo, idNota, nomeArquivo, urlCloudinary)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `;
+    const values = [tipo, idNota, nomeArquivo, urlCloudinary];
+    const { rows } = await pool.query(query, values);
+    res.json({ success: true, anexo: rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Listar anexos de uma NC ou NE
+app.get('/api/anexos', async (req, res) => {
+  const { tipo, idNota } = req.query;
+  if (!tipo || !idNota) {
+    return res.status(400).json({ error: 'Parâmetros tipo e idNota são obrigatórios.' });
+  }
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM anexos WHERE tipo = $1 AND idNota = $2 ORDER BY dataInclusao DESC',
+      [tipo, idNota]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
