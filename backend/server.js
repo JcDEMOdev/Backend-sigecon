@@ -9,6 +9,10 @@ import pkg from 'pg';
 const { Pool } = pkg;
 import Decimal from 'decimal.js';
 
+// Importar middlewares e rotas de anexos
+import { login, logout, checkSession } from './middlewares/auth.js';
+import anexosRoutes from './routes/anexos.js';
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -92,6 +96,22 @@ app.delete('/api/ug/:id', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// ================== Autenticação ==================
+
+// Login
+app.post('/api/auth/login', login);
+
+// Logout
+app.post('/api/auth/logout', logout);
+
+// Verificar sessão
+app.get('/api/auth/session', checkSession);
+
+// ================== Anexos ==================
+
+// Usar rotas de anexos
+app.use('/api/anexos', anexosRoutes);
 
 // ================== Nota de Crédito (NC) ==================
 
