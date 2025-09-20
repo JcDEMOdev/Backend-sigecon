@@ -1,68 +1,24 @@
 // SIGECON Backend Unificado - Express + Neon/Postgres (ESM version)
-// Arquivo principal que importa rotas, middlewares e configura sessões
 // Todas as rotas NC (Nota de Crédito) padronizadas para /api/nota_credito
 
 import dotenv from 'dotenv';
 dotenv.config();
 import express from 'express';
 import cors from 'cors';
+import pkg from 'pg';
+const { Pool } = pkg;
 import Decimal from 'decimal.js';
 
-// Importações modulares
-import pool from './db.js';
-import { 
-  sessionConfig, 
-  requireAuth, 
-  attachUser, 
-  devBypass, 
-  loginRoute, 
-  logoutRoute 
-} from './middlewares/auth.js';
-import anexosRoutes from './routes/anexos.js';
-
 const app = express();
-
-// ================== CONFIGURAÇÃO DE MIDDLEWARES ==================
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true // necessário para sessions
-}));
+app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Configuração de sessões
-app.use(sessionConfig);
-
-// Middleware de desenvolvimento (bypass auth se configurado)
-if (process.env.NODE_ENV === 'development') {
-  app.use(devBypass);
-}
-
-// Middleware para anexar informações do usuário
-app.use(attachUser);
-
-// ================== ROTAS DE AUTENTICAÇÃO ==================
-app.post('/api/auth/login', loginRoute);
-app.post('/api/auth/logout', logoutRoute);
-
-// Rota para verificar sessão
-app.get('/api/auth/session', (req, res) => {
-  if (req.session && req.session.userId) {
-    res.json({
-      authenticated: true,
-      user: {
-        id: req.session.userId,
-        username: req.session.username,
-        ...req.user
-      }
-    });
-  } else {
-    res.json({ authenticated: false });
-  }
+// ================== CONFIGURAÇÃO DO BANCO NEON/POSTGRES ==================
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL ||
+    'postgresql://neondb_owner:npg_8cDPnmrpoJ4B@ep-crimson-mode-aejyyt5m-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require',
+  ssl: { rejectUnauthorized: false, require: true }
 });
-
-// ================== ROTAS DE ANEXOS ==================
-app.use('/api/anexos', anexosRoutes);
 
 // ================== UTILIDADE MOEDA BRL ==================
 function unformatBRL(val) {
@@ -90,8 +46,8 @@ function formatBRL(value) {
 
 // ================== UG (Unidade Gestora) ==================
 
-// Criar UG  
-app.post('/api/ug', requireAuth, async (req, res) => {
+// Criar UG
+app.post('/api/ug', async (req, res) => {
   const { nome } = req.body;
   try {
     const { rows } = await pool.query('INSERT INTO unidade_gestora (nome) VALUES ($1) RETURNING *', [nome]);
@@ -112,7 +68,7 @@ app.get('/api/ugs', async (req, res) => {
 });
 
 // Editar UG
-app.put('/api/ug/:id', requireAuth, async (req, res) => {
+app.put('/api/ug/:id', async (req, res) => {
   const { id } = req.params;
   const { nome } = req.body;
   try {
@@ -124,7 +80,7 @@ app.put('/api/ug/:id', requireAuth, async (req, res) => {
 });
 
 // Excluir UG
-app.delete('/api/ug/:id', requireAuth, async (req, res) => {
+app.delete('/api/ug/:id', async (req, res) => {
   const { id } = req.params;
   try {
     // Verifica se NC usa a UG
@@ -140,7 +96,7 @@ app.delete('/api/ug/:id', requireAuth, async (req, res) => {
 // ================== Nota de Crédito (NC) ==================
 
 // Criar Nota de Crédito
-app.post('/api/nota_credito', requireAuth, async (req, res) => {
+app.post('/api/nota_credito', async (req, res) => {
   const { ug_id, numero, data_emissao, descricao, prazo, nd, esfera, ptres, fonte, pi, responsavel, valor } = req.body;
   const query = `
     INSERT INTO nota_credito (
@@ -161,7 +117,7 @@ app.post('/api/nota_credito', requireAuth, async (req, res) => {
 // ================== RECOLHIMENTOS DE CRÉDITO ==================
 
 // Adicionar recolhimento
-app.post('/api/nota_credito/:id/recolhimento', requireAuth, async (req, res) => {
+app.post('/api/nota_credito/:id/recolhimento', async (req, res) => {
   const nc_id = req.params.id;
   const { numero, descricao, valor } = req.body;
   console.log('RECEBIDO:', { nc_id, numero, descricao, valor }); // debug
