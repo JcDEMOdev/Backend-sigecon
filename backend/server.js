@@ -13,6 +13,17 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const fileUpload = require('express-fileupload');
+app.use(fileUpload());
+const cloudinary = require('cloudinary').v2;
+
+// Configuração do cloudinary
+cloudinary.config({
+  cloud_name: 'dou2aaxnu',
+  api_key: '674861941633511',
+  api_secret: 'xOLJgYoFlczSrB-PZBq0dMABlw8'
+});
+
 // ================== CONFIGURAÇÃO DO BANCO NEON/POSTGRES ==================
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL ||
@@ -555,11 +566,23 @@ app.listen(PORT, () => {
 
 // Salvar anexo (PDF) de NC ou NE
 app.post('/api/anexos', async (req, res) => {
-  const { idNota, tipo, nomeArquivo, urlcloudinary } = req.body;
-  if (!idNota || !tipo || !nomeArquivo || !urlcloudinary) {
+  const { idNota, tipo, nomeArquivo } = req.body;
+  const pdfFile = req.files?.pdf;
+
+  if (!idNota || !tipo || !nomeArquivo || !pdfFile) {
     return res.status(400).json({ success: false, error: 'Campos obrigatórios faltando.' });
   }
+
   try {
+    // Upload do PDF para o Cloudinary como recurso RAW
+    const result = await cloudinary.uploader.upload(pdfFile.tempFilePath, {
+      resource_type: 'raw',
+      folder: 'sigecon-anexos' // opcional: pasta específica no Cloudinary
+    });
+
+    const urlcloudinary = result.secure_url;
+
+    // Salvar no banco de dados
     const query = `
       INSERT INTO anexos (tipo, idNota, nomeArquivo, urlcloudinary, dataInclusao)
       VALUES ($1, $2, $3, $4, NOW())
