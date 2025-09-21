@@ -608,7 +608,7 @@ app.get('/api/anexos', async (req, res) => {
   }
   try {
     const { rows } = await pool.query(
-      'SELECT * FROM anexos WHERE tipo = $1 AND idNota = $2 ORDER BY dataInclusao DESC',
+      'SELECT * FROM anexos WHERE tipo = $1 AND idnota = $2 ORDER BY datainclusao DESC',
       [tipo, idNota]
     );
     res.json(rows);
