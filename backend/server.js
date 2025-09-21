@@ -3,19 +3,19 @@
 
 import dotenv from 'dotenv';
 dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import pkg from 'pg';
 const { Pool } = pkg;
 import Decimal from 'decimal.js';
+import fileUpload from 'express-fileupload';
+import cloudinary from 'cloudinary';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-
-const fileUpload = require('express-fileupload');
-app.use(fileUpload());
-const cloudinary = require('cloudinary').v2;
+app.use(fileUpload({ useTempFiles: true, tempFileDir: '/tmp/' }));
 
 // Configuração do cloudinary
 cloudinary.config({
@@ -28,8 +28,12 @@ cloudinary.config({
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL ||
     'postgresql://neondb_owner:npg_8cDPnmrpoJ4B@ep-crimson-mode-aejyyt5m-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require',
-  ssl: { rejectUnauthorized: false, require: true }
+  ssl: { rejectUnauthorized: false }
 });
+
+
+
+
 
 // ================== UTILIDADE MOEDA BRL ==================
 function unformatBRL(val) {
