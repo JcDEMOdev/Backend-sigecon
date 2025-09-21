@@ -9,20 +9,10 @@ import cors from 'cors';
 import pkg from 'pg';
 const { Pool } = pkg;
 import Decimal from 'decimal.js';
-import fileUpload from 'express-fileupload';
-import cloudinary from 'cloudinary';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(fileUpload({ useTempFiles: true, tempFileDir: '/tmp/' }));
-
-// Configuração do cloudinary
-cloudinary.config({
-  cloud_name: 'dou2aaxnu',
-  api_key: '674861941633511',
-  api_secret: 'xOLJgYoFlczSrB-PZBq0dMABlw8'
-});
 
 // ================== CONFIGURAÇÃO DO BANCO NEON/POSTGRES ==================
 const pool = new Pool({
