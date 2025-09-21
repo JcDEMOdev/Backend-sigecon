@@ -588,11 +588,11 @@ app.post('/api/anexos', async (req, res) => {
 
     // Salvar no banco de dados
     const query = `
-      INSERT INTO anexos (tipo, idNota, nomeArquivo, urlcloudinary, dataInclusao)
-      VALUES ($1, $2, $3, $4, NOW())
-      RETURNING *
-    `;
-    const values = [tipo, idNota, nomeArquivo, urlcloudinary];
+  INSERT INTO anexos (tipo, idnota, nomearquivo, urlcloudinary, datainclusao)
+  VALUES ($1, $2, $3, $4, NOW())
+  RETURNING *
+  `;
+  const values = [tipo, idNota, nomeArquivo, urlcloudinary];
     const { rows } = await pool.query(query, values);
     res.json({ success: true, anexo: rows[0] });
   } catch (err) {
