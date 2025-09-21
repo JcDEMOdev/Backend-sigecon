@@ -561,8 +561,8 @@ app.post('/api/anexos', async (req, res) => {
   }
   try {
     const query = `
-      INSERT INTO anexos (tipo, idNota, nomeArquivo, urlCloudinary)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO anexos (tipo, idNota, nomeArquivo, urlCloudinary, dataInclusao)
+      VALUES ($1, $2, $3, $4, NOW())
       RETURNING *
     `;
     const values = [tipo, idNota, nomeArquivo, urlCloudinary];
