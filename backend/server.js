@@ -10,19 +10,17 @@ import pkg from 'pg';
 const { Pool } = pkg;
 import Decimal from 'decimal.js';
 import fileUpload from 'express-fileupload';
-import cloudinary from 'cloudinary';
+
+// SUPABASE CONFIG
+import { createClient } from '@supabase/supabase-js';
+const supabaseUrl = process.env.SUPABASE_URL || 'https://dixnalbvunokqoycuqoy.supabase.co';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '<COLE_AQUI_SUA_SERVICE_ROLE_KEY>';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(fileUpload({ useTempFiles: true, tempFileDir: '/tmp/' }));
-
-// Configuração do cloudinary
-cloudinary.config({
-  cloud_name: 'dou2aaxnu',
-  api_key: '674861941633511',
-  api_secret: 'xOLJgYoFlczSrB-PZBq0dMABlw8'
-});
 
 // ================== CONFIGURAÇÃO DO BANCO NEON/POSTGRES ==================
 const pool = new Pool({
@@ -555,25 +553,45 @@ app.get('/api/saldo-ug/:ug_id', async (req, res) => {
   }
 });
 
-// ========== ANEXOS (PDF Cloudinary) ==========
+// ========== ANEXOS (PDF Supabase Storage) ==========
 
-// Salvar anexo (PDF já hospedado no Cloudinary) de NC ou NE
+// Salvar anexo (PDF upload no Supabase Storage) de NC ou NE
 app.post('/api/anexos', async (req, res) => {
-  const { idNota, tipo, nomeArquivo, urlcloudinary } = req.body;
+  const { idNota, tipo } = req.body;
+  const file = req.files?.arquivo;
 
   // Checagem dos campos obrigatórios
-  if (!idNota || !tipo || !nomeArquivo || !urlcloudinary) {
+  if (!idNota || !tipo || !file) {
     return res.status(400).json({ success: false, error: 'Campos obrigatórios faltando.' });
   }
 
   try {
+    // Nome único para o arquivo
+    const nomeArquivo = `${Date.now()}_${file.name}`;
+    // Upload para o Supabase Storage
+    const { data, error } = await supabase.storage
+      .from('sigecon-notas')
+      .upload(nomeArquivo, file.data, {
+        contentType: file.mimetype,
+        upsert: false,
+      });
+
+    if (error) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    // Gerar URL pública
+    const { publicUrl } = supabase.storage
+      .from('sigecon-notas')
+      .getPublicUrl(nomeArquivo);
+
     // Salvar referência no banco de dados
     const query = `
-      INSERT INTO anexos (tipo, idnota, nomearquivo, urlcloudinary, datainclusao)
+      INSERT INTO anexos (tipo, idnota, nomearquivo, urlsupabase, datainclusao)
       VALUES ($1, $2, $3, $4, NOW())
       RETURNING *
     `;
-    const values = [tipo, idNota, nomeArquivo, urlcloudinary];
+    const values = [tipo, idNota, nomeArquivo, publicUrl];
     const { rows } = await pool.query(query, values);
     res.json({ success: true, anexo: rows[0] });
   } catch (err) {
