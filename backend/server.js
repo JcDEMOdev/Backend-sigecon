@@ -570,29 +570,20 @@ app.listen(PORT, () => {
 
 // Salvar anexo (PDF) de NC ou NE
 app.post('/api/anexos', async (req, res) => {
-  const { idNota, tipo, nomeArquivo } = req.body;
-  const pdfFile = req.files?.pdf;
+  const { idNota, tipo, nomeArquivo, urlcloudinary } = req.body;
 
-  if (!idNota || !tipo || !nomeArquivo || !pdfFile) {
+  if (!idNota || !tipo || !nomeArquivo || !urlcloudinary) {
     return res.status(400).json({ success: false, error: 'Campos obrigatórios faltando.' });
   }
 
   try {
-    // Upload do PDF para o Cloudinary como recurso RAW
-    const result = await cloudinary.uploader.upload(pdfFile.tempFilePath, {
-      resource_type: 'raw',
-      folder: 'sigecon-anexos' // opcional: pasta específica no Cloudinary
-    });
-
-    const urlcloudinary = result.secure_url;
-
-    // Salvar no banco de dados
+    // Salvar no banco de dados com nomes de campos compatíveis com Neon/Postgres
     const query = `
-      INSERT INTO anexos (tipo, idNota, nomeArquivo, urlcloudinary, dataInclusao)
+      INSERT INTO anexos (idnota, nomearquivo, urlcloudinary, tipo, datainclusao)
       VALUES ($1, $2, $3, $4, NOW())
       RETURNING *
     `;
-    const values = [tipo, idNota, nomeArquivo, urlcloudinary];
+    const values = [idNota, nomeArquivo, urlcloudinary, tipo];
     const { rows } = await pool.query(query, values);
     res.json({ success: true, anexo: rows[0] });
   } catch (err) {
@@ -608,7 +599,7 @@ app.get('/api/anexos', async (req, res) => {
   }
   try {
     const { rows } = await pool.query(
-      'SELECT * FROM anexos WHERE tipo = $1 AND idNota = $2 ORDER BY dataInclusao DESC',
+      'SELECT * FROM anexos WHERE tipo = $1 AND idnota = $2 ORDER BY datainclusao DESC',
       [tipo, idNota]
     );
     res.json(rows);
