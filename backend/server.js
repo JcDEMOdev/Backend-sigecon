@@ -9,20 +9,10 @@ import cors from 'cors';
 import pkg from 'pg';
 const { Pool } = pkg;
 import Decimal from 'decimal.js';
-import fileUpload from 'express-fileupload';
-import cloudinary from 'cloudinary';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(fileUpload({ useTempFiles: true, tempFileDir: '/tmp/' }));
-
-// Configuração do cloudinary
-cloudinary.config({
-  cloud_name: 'dou2aaxnu',
-  api_key: '674861941633511',
-  api_secret: 'xOLJgYoFlczSrB-PZBq0dMABlw8'
-});
 
 // ================== CONFIGURAÇÃO DO BANCO NEON/POSTGRES ==================
 const pool = new Pool({
@@ -570,22 +560,13 @@ app.listen(PORT, () => {
 
 // Salvar anexo (PDF) de NC ou NE
 app.post('/api/anexos', async (req, res) => {
-  const { idNota, tipo, nomeArquivo } = req.body;
-  const pdfFile = req.files?.pdf;
+  const { idNota, tipo, nomeArquivo, urlcloudinary } = req.body;
 
-  if (!idNota || !tipo || !nomeArquivo || !pdfFile) {
+  if (!idNota || !tipo || !nomeArquivo || !urlcloudinary) {
     return res.status(400).json({ success: false, error: 'Campos obrigatórios faltando.' });
   }
 
   try {
-    // Upload do PDF para o Cloudinary como recurso RAW
-    const result = await cloudinary.uploader.upload(pdfFile.tempFilePath, {
-      resource_type: 'raw',
-      folder: 'sigecon-anexos' // opcional: pasta específica no Cloudinary
-    });
-
-    const urlcloudinary = result.secure_url;
-
     // Salvar no banco de dados
     const query = `
       INSERT INTO anexos (tipo, idNota, nomeArquivo, urlcloudinary, dataInclusao)
