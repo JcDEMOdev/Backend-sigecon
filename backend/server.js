@@ -31,10 +31,6 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-
-
-
-
 // ================== UTILIDADE MOEDA BRL ==================
 function unformatBRL(val) {
   if (val instanceof Decimal) return val;
@@ -135,7 +131,6 @@ app.post('/api/nota_credito', async (req, res) => {
 app.post('/api/nota_credito/:id/recolhimento', async (req, res) => {
   const nc_id = req.params.id;
   const { numero, descricao, valor } = req.body;
-  console.log('RECEBIDO:', { nc_id, numero, descricao, valor }); // debug
   if (!numero || !descricao || !valor) {
     return res.status(400).json({ error: "Campos obrigatórios: numero, descricao, valor" });
   }
@@ -149,7 +144,6 @@ app.post('/api/nota_credito/:id/recolhimento', async (req, res) => {
     const { rows } = await pool.query(query, values);
     res.status(201).json(rows[0]);
   } catch (err) {
-    console.error('ERRO AO INSERIR RECOLHIMENTO:', err); // debug
     res.status(500).json({ error: err.message });
   }
 });
@@ -262,7 +256,6 @@ app.get('/api/nota_credito', async (req, res) => {
     }));
     res.json(result);
   } catch (err) {
-    console.error('Erro em /api/nota_credito:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -562,37 +555,25 @@ app.get('/api/saldo-ug/:ug_id', async (req, res) => {
   }
 });
 
-// ================== Inicialização do servidor ==================
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`SIGECON backend rodando na porta ${PORT}`);
-});
+// ========== ANEXOS (PDF Cloudinary) ==========
 
-// Salvar anexo (PDF) de NC ou NE
+// Salvar anexo (PDF já hospedado no Cloudinary) de NC ou NE
 app.post('/api/anexos', async (req, res) => {
-  const { idNota, tipo, nomeArquivo } = req.body;
-  const pdfFile = req.files?.pdf;
+  const { idNota, tipo, nomeArquivo, urlcloudinary } = req.body;
 
-  if (!idNota || !tipo || !nomeArquivo || !pdfFile) {
+  // Checagem dos campos obrigatórios
+  if (!idNota || !tipo || !nomeArquivo || !urlcloudinary) {
     return res.status(400).json({ success: false, error: 'Campos obrigatórios faltando.' });
   }
 
   try {
-    // Upload do PDF para o Cloudinary como recurso RAW
-    const result = await cloudinary.uploader.upload(pdfFile.tempFilePath, {
-      resource_type: 'raw',
-      folder: 'sigecon-anexos' // opcional: pasta específica no Cloudinary
-    });
-
-    const urlcloudinary = result.secure_url;
-
-    // Salvar no banco de dados
+    // Salvar referência no banco de dados
     const query = `
-  INSERT INTO anexos (tipo, idnota, nomearquivo, urlcloudinary, datainclusao)
-  VALUES ($1, $2, $3, $4, NOW())
-  RETURNING *
-  `;
-  const values = [tipo, idNota, nomeArquivo, urlcloudinary];
+      INSERT INTO anexos (tipo, idnota, nomearquivo, urlcloudinary, datainclusao)
+      VALUES ($1, $2, $3, $4, NOW())
+      RETURNING *
+    `;
+    const values = [tipo, idNota, nomeArquivo, urlcloudinary];
     const { rows } = await pool.query(query, values);
     res.json({ success: true, anexo: rows[0] });
   } catch (err) {
@@ -615,4 +596,10 @@ app.get('/api/anexos', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ================== Inicialização do servidor ==================
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`SIGECON backend rodando na porta ${PORT}`);
 });
