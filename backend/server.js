@@ -20,7 +20,12 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(fileUpload({ useTempFiles: true, tempFileDir: '/tmp/' }));
+// Adicione limite de tamanho do arquivo e diretório temporário para uploads
+app.use(fileUpload({
+  useTempFiles: true,
+  tempFileDir: '/tmp/',
+  limits: { fileSize: 20 * 1024 * 1024 } // 20MB
+}));
 
 // ================== CONFIGURAÇÃO DO BANCO NEON/POSTGRES ==================
 const pool = new Pool({
@@ -557,6 +562,11 @@ app.get('/api/saldo-ug/:ug_id', async (req, res) => {
 
 // Salvar anexo (PDF upload no Supabase Storage) de NC ou NE
 app.post('/api/anexos', async (req, res) => {
+  // DEBUG: log dos campos recebidos
+  console.log('idNota:', req.body.idNota);
+  console.log('tipo:', req.body.tipo);
+  console.log('file:', req.files?.arquivo);
+
   const { idNota, tipo } = req.body;
   const file = req.files?.arquivo;
 
