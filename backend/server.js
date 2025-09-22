@@ -563,15 +563,15 @@ app.get('/api/saldo-ug/:ug_id', async (req, res) => {
 // Salvar anexo (PDF upload no Supabase Storage) de NC ou NE
 app.post('/api/anexos', async (req, res) => {
   // DEBUG: log dos campos recebidos
-  console.log('idNota:', req.body.idNota);
+  console.log('idnota:', req.body.idnota);
   console.log('tipo:', req.body.tipo);
   console.log('file:', req.files?.arquivo);
 
-  const { idNota, tipo } = req.body;
+  const { idnota, tipo } = req.body;
   const file = req.files?.arquivo;
 
   // Checagem dos campos obrigatórios
-  if (!idNota || !tipo || !file) {
+  if (!idnota || !tipo || !file) {
     return res.status(400).json({ success: false, error: 'Campos obrigatórios faltando.' });
   }
 
@@ -601,7 +601,7 @@ app.post('/api/anexos', async (req, res) => {
       VALUES ($1, $2, $3, $4, NOW())
       RETURNING *
     `;
-    const values = [tipo, idNota, nomeArquivo, publicUrl];
+    const values = [tipo, idnota, nomeArquivo, publicUrl];
     const { rows } = await pool.query(query, values);
     res.json({ success: true, anexo: rows[0] });
   } catch (err) {
@@ -611,14 +611,14 @@ app.post('/api/anexos', async (req, res) => {
 
 // Listar anexos de uma NC ou NE
 app.get('/api/anexos', async (req, res) => {
-  const { tipo, idNota } = req.query;
-  if (!tipo || !idNota) {
-    return res.status(400).json({ error: 'Parâmetros tipo e idNota são obrigatórios.' });
+  const { tipo, idnota } = req.query;
+  if (!tipo || !idnota) {
+    return res.status(400).json({ error: 'Parâmetros tipo e idnota são obrigatórios.' });
   }
   try {
     const { rows } = await pool.query(
       'SELECT * FROM anexos WHERE tipo = $1 AND idnota = $2 ORDER BY datainclusao DESC',
-      [tipo, idNota]
+      [tipo, idnota]
     );
     res.json(rows);
   } catch (err) {
