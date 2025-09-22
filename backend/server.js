@@ -581,6 +581,10 @@ app.post('/api/anexos', async (req, res) => {
     // Nome único para o arquivo
     const nomeArquivo = `${Date.now()}_${file.name}`;
     // Upload para o Supabase Storage
+    console.log('idnota:', req.body.idnota);
+    console.log('tipo:', req.body.tipo);
+    console.log('file:', req.files?.arquivo);
+
     const { data, error } = await supabase.storage
       .from('sigecon-notas')
       .upload(nomeArquivo, file.data, {
@@ -589,6 +593,7 @@ app.post('/api/anexos', async (req, res) => {
       });
 
     if (error) {
+      console.error('SUPABASE UPLOAD ERROR:', error); // <---- ADICIONE ESTE LOG
       return res.status(500).json({ success: false, error: error.message });
     }
 
