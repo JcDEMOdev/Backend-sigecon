@@ -571,6 +571,8 @@ app.post('/api/anexos', async (req, res) => {
   const file = req.files?.arquivo;
 
   // Checagem dos campos obrigatórios
+  console.log("req.body:", req.body);
+  console.log("req.files:", req.files);
   if (!idnota || !tipo || !file) {
     return res.status(400).json({ success: false, error: 'Campos obrigatórios faltando.' });
   }
