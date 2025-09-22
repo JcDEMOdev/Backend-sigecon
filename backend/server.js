@@ -14,7 +14,7 @@ import fileUpload from 'express-fileupload';
 // SUPABASE CONFIG
 import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.SUPABASE_URL || 'https://dixnalbvunokqoycuqoy.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '<COLE_AQUI_SUA_SERVICE_ROLE_KEY>';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpeG5hbGJ2dW9ua3FveWN1b3F2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1ODQ5NTQ4OSwiZXhwIjoyMDc0MDcxNDg5fQ.4ZQI9701OQ8Z4ZB6vC5kQnIIa2uba4lOY677Sd2ej4g';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const app = express();
