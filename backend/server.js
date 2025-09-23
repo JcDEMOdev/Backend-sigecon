@@ -136,11 +136,13 @@ app.post('/api/nota_credito', async (req, res) => {
 // ================== MELHORIA: ENDPOINT PARA LINK DO DROP-NOTES ==================
 
 // Adiciona ou atualiza o link do Drop-Notes em uma NC
+// PADRONIZAÇÃO: Frontend e backend devem SEMPRE usar 'link_dropnotes' (snake_case)
+// para garantir compatibilidade total entre frontend, backend e banco de dados
 app.put('/api/nota_credito/:id/dropnotes_link', async (req, res) => {
   const { id } = req.params;
-  const { linkDropNotes } = req.body; // Espera { linkDropNotes: "https://dropnotesdemo.netlify.app?nota=..." }
+  const { link_dropnotes } = req.body; // Espera { link_dropnotes: "https://dropnotesdemo.netlify.app?nota=..." }
   try {
-    await pool.query('UPDATE nota_credito SET link_dropnotes = $1 WHERE id = $2', [linkDropNotes, id]);
+    await pool.query('UPDATE nota_credito SET link_dropnotes = $1 WHERE id = $2', [link_dropnotes, id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -148,11 +150,13 @@ app.put('/api/nota_credito/:id/dropnotes_link', async (req, res) => {
 });
 
 // Adiciona ou atualiza o link do Drop-Notes em uma NE
+// PADRONIZAÇÃO: Frontend e backend devem SEMPRE usar 'link_dropnotes' (snake_case)
+// para garantir compatibilidade total entre frontend, backend e banco de dados
 app.put('/api/nes/:id/dropnotes_link', async (req, res) => {
   const { id } = req.params;
-  const { linkDropNotes } = req.body;
+  const { link_dropnotes } = req.body;
   try {
-    await pool.query('UPDATE nota_empenhos SET link_dropnotes = $1 WHERE id = $2', [linkDropNotes, id]);
+    await pool.query('UPDATE nota_empenhos SET link_dropnotes = $1 WHERE id = $2', [link_dropnotes, id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
