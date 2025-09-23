@@ -136,7 +136,7 @@ app.post('/api/nota_credito', async (req, res) => {
 // ================== MELHORIA: ENDPOINT PARA LINK DO DROP-NOTES ==================
 
 // Adiciona ou atualiza o link do Drop-Notes em uma NC
-app.put('/api/nota_credito/:id/dropnotes_link', async (req, res) => {
+app.put('/api/nota_credito/:id/link_dropnotes', async (req, res) => {
   const { id } = req.params;
   const { linkDropNotes } = req.body; // Espera { linkDropNotes: "https://dropnotesdemo.netlify.app?nota=..." }
   try {
@@ -148,7 +148,7 @@ app.put('/api/nota_credito/:id/dropnotes_link', async (req, res) => {
 });
 
 // Adiciona ou atualiza o link do Drop-Notes em uma NE
-app.put('/api/nes/:id/dropnotes_link', async (req, res) => {
+app.put('/api/nes/:id/link_dropnotes', async (req, res) => {
   const { id } = req.params;
   const { linkDropNotes } = req.body;
   try {
