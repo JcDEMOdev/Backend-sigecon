@@ -1,33 +1,36 @@
 // SIGECON Backend Unificado - Express + Neon/Postgres (ESM version)
 // Todas as rotas NC (Nota de Crédito) padronizadas para /api/nota_credito
 
-import dotenv from 'dotenv';
+import dotenv from 'dotenv';        // Carrega variáveis de ambiente do arquivo .env
 dotenv.config();
 
-import express from 'express';
-import cors from 'cors';
-import pkg from 'pg';
-const { Pool } = pkg;
-import Decimal from 'decimal.js';
-import fileUpload from 'express-fileupload';
+import express from 'express';      // Framework web para criar servidor HTTP/API REST
+import cors from 'cors';            // Middleware para liberar requisições externas (CORS)
+import pkg from 'pg';               // Cliente PostgreSQL para Node.js
+const { Pool } = pkg;               // Pool de conexões com Postgres
+import Decimal from 'decimal.js';   // Biblioteca para cálculos precisos com números decimais
+import fileUpload from 'express-fileupload'; // Middleware para upload de arquivos
 
-// SUPABASE CONFIG
-import { createClient } from '@supabase/supabase-js';
+// SUPABASE CONFIGURAÇÃO PARA UPLOAD DE ARQUIVOS
+import { createClient } from '@supabase/supabase-js'; // Cliente JS para Supabase Storage
 const supabaseUrl = process.env.SUPABASE_URL || 'https://dixnalbvuonkqoycuoqv.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpeG5hbGJ2dW9ua3FveWN1b3F2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1ODQ5NTQ4OSwiZXhwIjoyMDc0MDcxNDg5fQ.4ZQI9701OQ8Z4ZB6vC5kQnIIa2uba4lOY677Sd2ej4g';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '...'; // Chave de serviço do Supabase
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-const app = express();
-app.use(cors());
-app.use(express.json());
-// Adicione limite de tamanho do arquivo e diretório temporário para uploads
+const app = express();              // Cria instância do servidor Express
+
+app.use(cors());                    // Libera acesso CORS para qualquer origem
+app.use(express.json());            // Permite receber JSON no corpo das requisições
+
+// Configuração de upload de arquivos (PDFs) - limite de 20MB
 app.use(fileUpload({
-  useTempFiles: true,
-  tempFileDir: '/tmp/',
-  limits: { fileSize: 20 * 1024 * 1024 } // 20MB
+  useTempFiles: true,               // Usa arquivos temporários ao fazer upload
+  tempFileDir: '/tmp/',             // Diretório para arquivos temporários
+  limits: { fileSize: 20 * 1024 * 1024 } // Limite de arquivo: 20MB
 }));
 
 // ================== CONFIGURAÇÃO DO BANCO NEON/POSTGRES ==================
+// Conexão com banco de dados Postgres usando Pool
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL ||
     'postgresql://neondb_owner:npg_8cDPnmrpoJ4B@ep-crimson-mode-aejyyt5m-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require',
@@ -35,6 +38,7 @@ const pool = new Pool({
 });
 
 // ================== UTILIDADE MOEDA BRL ==================
+// Função para converter texto de moeda BRL para Decimal
 function unformatBRL(val) {
   if (val instanceof Decimal) return val;
   if (typeof val === "number") return new Decimal(val);
@@ -50,6 +54,7 @@ function unformatBRL(val) {
     return new Decimal(number);
   }
 }
+// Função para formatar Decimal para texto BRL
 function formatBRL(value) {
   let n = value instanceof Decimal ? value : new Decimal(value || 0);
   let parts = n.toFixed(2).split('.');
@@ -93,7 +98,7 @@ app.put('/api/ug/:id', async (req, res) => {
   }
 });
 
-// Excluir UG
+// Excluir UG (verifica se está em uso em alguma NC antes)
 app.delete('/api/ug/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -123,6 +128,32 @@ app.post('/api/nota_credito', async (req, res) => {
   try {
     const { rows } = await pool.query(query, values);
     res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ================== MELHORIA: ENDPOINT PARA LINK DO DROP-NOTES ==================
+
+// Adiciona ou atualiza o link do Drop-Notes em uma NC
+app.put('/api/nota_credito/:id/dropnotes_link', async (req, res) => {
+  const { id } = req.params;
+  const { linkDropNotes } = req.body; // Espera { linkDropNotes: "https://dropnotesdemo.netlify.app?nota=..." }
+  try {
+    await pool.query('UPDATE nota_credito SET link_dropnotes = $1 WHERE id = $2', [linkDropNotes, id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Adiciona ou atualiza o link do Drop-Notes em uma NE
+app.put('/api/nes/:id/dropnotes_link', async (req, res) => {
+  const { id } = req.params;
+  const { linkDropNotes } = req.body;
+  try {
+    await pool.query('UPDATE nota_empenhos SET link_dropnotes = $1 WHERE id = $2', [linkDropNotes, id]);
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -194,7 +225,7 @@ app.delete('/api/nota_credito/:id/recolhimento/:recId', async (req, res) => {
   }
 });
 
-// Listar todas Notas de Crédito (AGORA COM LANCAMENTOS EMBUTIDOS NAS NEs E RECOLHIMENTOS)
+// Listar todas Notas de Crédito (NC) com subNCs, NEs e recolhimentos embutidos
 app.get('/api/nota_credito', async (req, res) => {
   const query = `
     SELECT 
@@ -451,15 +482,7 @@ app.delete('/api/nes/:id', async (req, res) => {
 
 // ================== LANÇAMENTOS DE REFORÇO/ANULAÇÃO EM NE ==================
 // OBS: Execute no banco antes o seguinte SQL:
-//
-// CREATE TABLE ne_lancamentos (
-//   id SERIAL PRIMARY KEY,
-//   ne_id INTEGER NOT NULL REFERENCES nota_empenhos(id) ON DELETE CASCADE,
-//   tipo VARCHAR(12) NOT NULL CHECK (tipo IN ('reforco', 'anulacao')),
-//   valor NUMERIC(15,2) NOT NULL,
-//   descricao VARCHAR(255),
-//   data TIMESTAMP NOT NULL DEFAULT NOW()
-// );
+// CREATE TABLE ne_lancamentos (id SERIAL PRIMARY KEY, ne_id INTEGER NOT NULL REFERENCES nota_empenhos(id) ON DELETE CASCADE, tipo VARCHAR(12) NOT NULL CHECK (tipo IN ('reforco', 'anulacao')), valor NUMERIC(15,2) NOT NULL, descricao VARCHAR(255), data TIMESTAMP NOT NULL DEFAULT NOW());
 
 // Listar lançamentos de uma NE (normaliza tipo para lanc-reforco/lanc-anulacao)
 app.get('/api/nes/:ne_id/lancamentos', async (req, res) => {
@@ -467,7 +490,6 @@ app.get('/api/nes/:ne_id/lancamentos', async (req, res) => {
   try {
     const { rows } = await pool.query(
       'SELECT * FROM ne_lancamentos WHERE ne_id = $1 ORDER BY data ASC', [ne_id]);
-    // Normaliza tipo para "lanc-reforco"/"lanc-anulacao" no retorno
     const result = rows.map(lanc => ({
       ...lanc,
       tipo: lanc.tipo === 'reforco' ? 'lanc-reforco'
@@ -482,20 +504,16 @@ app.get('/api/nes/:ne_id/lancamentos', async (req, res) => {
 app.post('/api/nes/:ne_id/lancamentos', async (req, res) => {
   const { ne_id } = req.params;
   let { tipo, valor, descricao } = req.body;
-  // Normaliza possíveis nomes vindos do frontend
   if (tipo === 'lanc-reforco') tipo = 'reforco';
   if (tipo === 'lanc-anulacao') tipo = 'anulacao';
   if (!ne_id || !tipo || !valor) return res.status(400).json({ error: 'Campos obrigatórios: ne_id, tipo, valor.' });
   if (!['reforco','anulacao'].includes(tipo)) return res.status(400).json({ error: 'Tipo inválido.' });
   try {
-    // Insere lançamento (NÃO altera valor da NE!)
     const { rows: lancRows } = await pool.query(
       'INSERT INTO ne_lancamentos (ne_id, tipo, valor, descricao) VALUES ($1, $2, $3, $4) RETURNING *',
       [ne_id, tipo, valor, descricao || null]
     );
-    // Busca NE atualizada
     const { rows: neRows } = await pool.query('SELECT * FROM nota_empenhos WHERE id = $1', [ne_id]);
-    // Normaliza tipo no retorno
     const lancRet = {
       ...lancRows[0],
       tipo: lancRows[0].tipo === 'reforco' ? 'lanc-reforco'
@@ -506,19 +524,15 @@ app.post('/api/nes/:ne_id/lancamentos', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Excluir lançamento de NE (NÃO altera valor da NE!)
+// Excluir lançamento de NE
 app.delete('/api/nes/:ne_id/lancamentos/:lanc_id', async (req, res) => {
   const { ne_id, lanc_id } = req.params;
   try {
-    // Busca o lançamento para saber tipo/valor
     const { rows: lancRows } = await pool.query(
       'SELECT * FROM ne_lancamentos WHERE id = $1 AND ne_id = $2', [lanc_id, ne_id]);
     if (!lancRows.length) return res.status(404).json({ error: 'Lançamento não encontrado.' });
-    // Remove o lançamento (NÃO altera valor da NE!)
     await pool.query('DELETE FROM ne_lancamentos WHERE id = $1 AND ne_id = $2', [lanc_id, ne_id]);
-    // Busca NE atualizada
     const { rows: neRows } = await pool.query('SELECT * FROM nota_empenhos WHERE id = $1', [ne_id]);
-    // Normaliza tipo no retorno
     const lancTipo = lancRows[0].tipo === 'reforco' ? 'lanc-reforco'
                    : lancRows[0].tipo === 'anulacao' ? 'lanc-anulacao'
                    : lancRows[0].tipo;
@@ -529,6 +543,7 @@ app.delete('/api/nes/:ne_id/lancamentos/:lanc_id', async (req, res) => {
 });
 
 // ================== Gráfico por UG ==================
+// Retorna dados de saldo por UG para gráfico
 app.get('/api/grafico-por-ug', async (req, res) => {
   const query = `
     SELECT ug.nome, SUM(nc.valor) as total
@@ -571,8 +586,6 @@ app.post('/api/anexos', async (req, res) => {
   const file = req.files?.arquivo;
 
   // Checagem dos campos obrigatórios
-  console.log("req.body:", req.body);
-  console.log("req.files:", req.files);
   if (!idnota || !tipo || !file) {
     return res.status(400).json({ success: false, error: 'Campos obrigatórios faltando.' });
   }
@@ -581,10 +594,6 @@ app.post('/api/anexos', async (req, res) => {
     // Nome único para o arquivo
     const nomeArquivo = `${Date.now()}_${file.name}`;
     // Upload para o Supabase Storage
-    console.log('idnota:', req.body.idnota);
-    console.log('tipo:', req.body.tipo);
-    console.log('file:', req.files?.arquivo);
-
     const { data, error } = await supabase.storage
       .from('sigecon-notas')
       .upload(nomeArquivo, file.data, {
@@ -593,7 +602,7 @@ app.post('/api/anexos', async (req, res) => {
       });
 
     if (error) {
-      console.error('SUPABASE UPLOAD ERROR:', error); // <---- ADICIONE ESTE LOG
+      console.error('SUPABASE UPLOAD ERROR:', error);
       return res.status(500).json({ success: false, error: error.message });
     }
 
