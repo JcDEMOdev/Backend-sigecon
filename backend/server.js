@@ -135,15 +135,32 @@ app.post('/api/nota_credito', async (req, res) => {
 
 // ================== MELHORIA: ENDPOINT PARA LINK DO DROP-NOTES ==================
 
-// Adiciona ou atualiza o link do Drop-Notes em uma NC
+// Adiciona ou atualiza o link do Drop-Notes em uma NC ou SubNC (unificado!)
 app.put('/api/nota_credito/:id/link_dropnotes', async (req, res) => {
-  const { id } = req.params;
-  const { linkDropNotes } = req.body; // Espera { linkDropNotes: "https://dropnotesdemo.netlify.app?nota=..." }
+  const { id } = req.params; // id da NC principal
+  const { linkDropNotes, subNcId } = req.body;
+
   try {
-    await pool.query('UPDATE nota_credito SET link_dropnotes = $1 WHERE id = $2', [linkDropNotes, id]);
-    res.json({ success: true });
+    if (subNcId) {
+      // Atualiza o link_dropnotes da SubNC (pertencente à NC de id)
+      const { rowCount } = await pool.query(
+        'UPDATE subnc SET link_dropnotes = $1 WHERE id = $2 AND nc_id = $3',
+        [linkDropNotes, subNcId, id]
+      );
+      if (!rowCount) return res.status(404).json({ success: false, error: "SubNC não encontrada" });
+      return res.json({ success: true, updated: 'subnc', subNcId });
+    } else {
+      // Atualiza o link_dropnotes da NC principal
+      const { rowCount } = await pool.query(
+        'UPDATE nota_credito SET link_dropnotes = $1 WHERE id = $2',
+        [linkDropNotes, id]
+      );
+      if (!rowCount) return res.status(404).json({ success: false, error: "Nota de Crédito não encontrada" });
+      return res.json({ success: true, updated: 'nc', id });
+    }
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ success: false, error: "Erro interno no servidor" });
   }
 });
 
