@@ -544,7 +544,7 @@ app.delete('/api/nes/:ne_id/lancamentos_160368_2026/:lanc_id', async (req, res) 
 
 // ================== Gráfico por UG ==================
 // Retorna dados de saldo por UG para gráfico
-app.get('/api/grafico-por-ug', async (req, res) => {
+app.get('/api/grafico-por-ug_160368_2026', async (req, res) => {
   const query = `
     SELECT ug.nome, SUM(nc.valor) as total
     FROM unidade_gestora_160368_2026 ug
