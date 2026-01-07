@@ -1,5 +1,5 @@
 // SIGECON Backend Unificado - Express + Neon/Postgres (ESM version)
-// Todas as rotas NC (Nota de Crédito) padronizadas para /api/nota_credito
+// Todas as rotas NC (Nota de Crédito) padronizadas para /api/nota_credito_160368_2026 DEMO
 
 import dotenv from 'dotenv';        // Carrega variáveis de ambiente do arquivo .env
 dotenv.config();
@@ -69,7 +69,7 @@ function formatBRL(value) {
 app.post('/api/ug', async (req, res) => {
   const { nome } = req.body;
   try {
-    const { rows } = await pool.query('INSERT INTO unidade_gestora (nome) VALUES ($1) RETURNING *', [nome]);
+    const { rows } = await pool.query('INSERT INTO unidade_gestora_160368_2026 (nome) VALUES ($1) RETURNING *', [nome]);
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -79,7 +79,7 @@ app.post('/api/ug', async (req, res) => {
 // Listar UGs
 app.get('/api/ugs', async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM unidade_gestora ORDER BY nome ASC');
+    const { rows } = await pool.query('SELECT * FROM unidade_gestora_160368_2026 ORDER BY nome ASC');
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -91,7 +91,7 @@ app.put('/api/ug/:id', async (req, res) => {
   const { id } = req.params;
   const { nome } = req.body;
   try {
-    const { rows } = await pool.query('UPDATE unidade_gestora SET nome = $1 WHERE id = $2 RETURNING *', [nome, id]);
+    const { rows } = await pool.query('UPDATE unidade_gestora_160368_2026 SET nome = $1 WHERE id = $2 RETURNING *', [nome, id]);
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -103,9 +103,9 @@ app.delete('/api/ug/:id', async (req, res) => {
   const { id } = req.params;
   try {
     // Verifica se NC usa a UG
-    const { rowCount } = await pool.query('SELECT 1 FROM nota_credito WHERE ug_id = $1', [id]);
+    const { rowCount } = await pool.query('SELECT 1 FROM nota_credito_160368_2026 WHERE ug_id = $1', [id]);
     if (rowCount) return res.status(409).json({ error: 'UG em uso em NCs.' });
-    await pool.query('DELETE FROM unidade_gestora WHERE id = $1', [id]);
+    await pool.query('DELETE FROM unidade_gestora_160368_2026 WHERE id = $1', [id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -115,10 +115,10 @@ app.delete('/api/ug/:id', async (req, res) => {
 // ================== Nota de Crédito (NC) ==================
 
 // Criar Nota de Crédito
-app.post('/api/nota_credito', async (req, res) => {
+app.post('/api/nota_credito_160368_2026', async (req, res) => {
   const { ug_id, numero, data_emissao, descricao, prazo, nd, esfera, ptres, fonte, pi, responsavel, valor } = req.body;
   const query = `
-    INSERT INTO nota_credito (
+    INSERT INTO nota_credito_160368_2026 (
       ug_id, numero, data_emissao, descricao, prazo, nd, esfera, ptres, fonte, pi, responsavel, valor, dataInclusao
     ) VALUES (
       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW()
@@ -136,11 +136,11 @@ app.post('/api/nota_credito', async (req, res) => {
 // ================== MELHORIA: ENDPOINT PARA LINK DO DROP-NOTES ==================
 
 // Adiciona ou atualiza o link do Drop-Notes em uma NC
-app.put('/api/nota_credito/:id/link_dropnotes', async (req, res) => {
+app.put('/api/nota_credito_160368_2026/:id/link_dropnotes', async (req, res) => {
   const { id } = req.params;
   const { linkDropNotes } = req.body; // Espera { linkDropNotes: "https://dropnotesdemo.netlify.app?nota=..." }
   try {
-    await pool.query('UPDATE nota_credito SET link_dropnotes = $1 WHERE id = $2', [linkDropNotes, id]);
+    await pool.query('UPDATE nota_credito_160368_2026 SET link_dropnotes = $1 WHERE id = $2', [linkDropNotes, id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -152,7 +152,7 @@ app.put('/api/nes/:id/link_dropnotes', async (req, res) => {
   const { id } = req.params;
   const { linkDropNotes } = req.body;
   try {
-    await pool.query('UPDATE nota_empenhos SET link_dropnotes = $1 WHERE id = $2', [linkDropNotes, id]);
+    await pool.query('UPDATE nota_empenho_160368_2026 SET link_dropnotes = $1 WHERE id = $2', [linkDropNotes, id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -162,7 +162,7 @@ app.put('/api/nes/:id/link_dropnotes', async (req, res) => {
 // ================== RECOLHIMENTOS DE CRÉDITO ==================
 
 // Adicionar recolhimento
-app.post('/api/nota_credito/:id/recolhimento', async (req, res) => {
+app.post('/api/nota_credito_160368_2026/:id/recolhimento', async (req, res) => {
   const nc_id = req.params.id;
   const { numero, descricao, valor } = req.body;
   if (!numero || !descricao || !valor) {
@@ -170,7 +170,7 @@ app.post('/api/nota_credito/:id/recolhimento', async (req, res) => {
   }
   try {
     const query = `
-      INSERT INTO recolhimentos (nc_id, numero, descricao, valor)
+      INSERT INTO recolhimento_160368_2026 (nc_id, numero, descricao, valor)
       VALUES ($1, $2, $3, $4)
       RETURNING *
     `;
@@ -183,11 +183,11 @@ app.post('/api/nota_credito/:id/recolhimento', async (req, res) => {
 });
 
 // Listar recolhimentos de uma NC
-app.get('/api/nota_credito/:id/recolhimentos', async (req, res) => {
+app.get('/api/nota_credito_160368_2026/:id/recolhimento_160368_2026', async (req, res) => {
   const nc_id = req.params.id;
   try {
     const { rows } = await pool.query(
-      'SELECT * FROM recolhimentos WHERE nc_id = $1 ORDER BY data DESC', [nc_id]
+      'SELECT * FROM recolhimento_160368_2026 WHERE nc_id = $1 ORDER BY data DESC', [nc_id]
     );
     res.json(rows);
   } catch (err) {
@@ -196,12 +196,12 @@ app.get('/api/nota_credito/:id/recolhimentos', async (req, res) => {
 });
 
 // Editar recolhimento
-app.put('/api/nota_credito/:id/recolhimento/:recId', async (req, res) => {
+app.put('/api/nota_credito_160368_2026/:id/recolhimento_160368_2026/:recId', async (req, res) => {
   const { id, recId } = req.params;
   const { numero, descricao, valor } = req.body;
   try {
     const query = `
-      UPDATE recolhimentos SET numero = $1, descricao = $2, valor = $3
+      UPDATE recolhimento_160368_2026 SET numero = $1, descricao = $2, valor = $3
       WHERE id = $4 AND nc_id = $5
       RETURNING *
     `;
@@ -215,10 +215,10 @@ app.put('/api/nota_credito/:id/recolhimento/:recId', async (req, res) => {
 });
 
 // Excluir recolhimento
-app.delete('/api/nota_credito/:id/recolhimento/:recId', async (req, res) => {
+app.delete('/api/nota_credito_160368_2026/:id/recolhimento_160368_2026/:recId', async (req, res) => {
   const { id, recId } = req.params;
   try {
-    await pool.query('DELETE FROM recolhimentos WHERE id = $1 AND nc_id = $2', [recId, id]);
+    await pool.query('DELETE FROM recolhimento_160368_2026 WHERE id = $1 AND nc_id = $2', [recId, id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -226,25 +226,25 @@ app.delete('/api/nota_credito/:id/recolhimento/:recId', async (req, res) => {
 });
 
 // Listar todas Notas de Crédito (NC) com subNCs, NEs e recolhimentos embutidos
-app.get('/api/nota_credito', async (req, res) => {
+app.get('/api/nota_credito_160368_2026', async (req, res) => {
   const query = `
     SELECT 
       nc.*,
       COALESCE(subncs.subncs, '[]') AS subncs,
       COALESCE(nes.nes, '[]') AS nes,
-      COALESCE(recs.recolhimentos, '[]') AS recolhimentos
-    FROM nota_credito nc
+      COALESCE(recs.recolhimentos, '[]') AS recolhimento_160368_2026
+    FROM nota_credito_160368_2026 nc
     LEFT JOIN LATERAL (
       SELECT json_agg(s ORDER BY s.data DESC) AS subncs
       FROM subnc s WHERE s.nc_id = nc.id
     ) subncs ON TRUE
     LEFT JOIN LATERAL (
       SELECT json_agg(n ORDER BY n.dataInclusao DESC) AS nes
-      FROM nota_empenhos n WHERE n.nc_id = nc.id
+      FROM nota_empenho_160368_2026 n WHERE n.nc_id = nc.id
     ) nes ON TRUE
     LEFT JOIN LATERAL (
       SELECT json_agg(r ORDER BY r.data DESC) AS recolhimentos
-      FROM recolhimentos r WHERE r.nc_id = nc.id
+      FROM recolhimento_160368_2026 r WHERE r.nc_id = nc.id
     ) recs ON TRUE
     ORDER BY nc.dataInclusao DESC
   `;
@@ -254,7 +254,7 @@ app.get('/api/nota_credito', async (req, res) => {
     const result = await Promise.all(rows.map(async nc => {
       let subncs = [];
       let nes = [];
-      let recolhimentos = [];
+      let recolhimento_160368_2026 = [];
       try {
         subncs = Array.isArray(nc.subncs) ? nc.subncs : JSON.parse(nc.subncs || "[]");
       } catch { subncs = []; }
@@ -262,13 +262,13 @@ app.get('/api/nota_credito', async (req, res) => {
         nes = Array.isArray(nc.nes) ? nc.nes : JSON.parse(nc.nes || "[]");
       } catch { nes = []; }
       try {
-        recolhimentos = Array.isArray(nc.recolhimentos) ? nc.recolhimentos : JSON.parse(nc.recolhimentos || "[]");
-      } catch { recolhimentos = []; }
+        recolhimento_160368_2026 = Array.isArray(nc.recolhimento_160368_2026) ? nc.recolhimento_160368_2026 : JSON.parse(nc.recolhimento_160368_2026 || "[]");
+      } catch { recolhimento_160368_2026 = []; }
       // Embute lançamentos em cada NE
       for (const ne of nes) {
         try {
           const { rows: lancs } = await pool.query(
-            'SELECT * FROM ne_lancamentos WHERE ne_id = $1 ORDER BY data ASC', [ne.id]);
+            'SELECT * FROM ne_lancamento_160368_2026 WHERE ne_id = $1 ORDER BY data ASC', [ne.id]);
           ne.lancamentos = lancs.map(lanc => ({
             ...lanc,
             tipo: lanc.tipo === 'reforco' ? 'lanc-reforco'
@@ -279,12 +279,12 @@ app.get('/api/nota_credito', async (req, res) => {
       }
       const totalSubnc = subncs.reduce((acc, sub) => acc.plus(new Decimal(sub.valor || 0)), new Decimal(0));
       const totalNe = nes.reduce((acc, ne) => acc.plus(new Decimal(ne.valor || 0)), new Decimal(0));
-      const totalRecolhidos = recolhimentos.reduce((acc, rec) => acc.plus(new Decimal(rec.valor || 0)), new Decimal(0));
+      const totalRecolhidos = recolhimento_160368_2026.reduce((acc, rec) => acc.plus(new Decimal(rec.valor || 0)), new Decimal(0));
       return {
         ...nc,
         subncs,
         nes,
-        recolhimentos,
+        recolhimento_160368_2026,
         saldo_atual: new Decimal(nc.valor || 0).plus(totalSubnc).minus(totalNe).minus(totalRecolhidos).toFixed(2)
       };
     }));
@@ -295,10 +295,10 @@ app.get('/api/nota_credito', async (req, res) => {
 });
 
 // Buscar Nota de Crédito por ID
-app.get('/api/nota_credito/:id', async (req, res) => {
+app.get('/api/nota_credito_160368_2026/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const { rows } = await pool.query('SELECT * FROM nota_credito WHERE id = $1', [id]);
+    const { rows } = await pool.query('SELECT * FROM nota_credito_160368_2026 WHERE id = $1', [id]);
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -306,11 +306,11 @@ app.get('/api/nota_credito/:id', async (req, res) => {
 });
 
 // Editar Nota de Crédito
-app.put('/api/nota_credito/:id', async (req, res) => {
+app.put('/api/nota_credito_160368_2026/:id', async (req, res) => {
   const { id } = req.params;
   const { ug_id, numero, data_emissao, descricao, prazo, nd, esfera, ptres, fonte, pi, responsavel, valor } = req.body;
   const query = `
-    UPDATE nota_credito SET
+    UPDATE nota_credito_160368_2026 SET
       ug_id = $1, numero = $2, data_emissao = $3, descricao = $4, prazo = $5, nd = $6,
       esfera = $7, ptres = $8, fonte = $9, pi = $10, responsavel = $11, valor = $12
     WHERE id = $13 RETURNING *
@@ -325,10 +325,10 @@ app.put('/api/nota_credito/:id', async (req, res) => {
 });
 
 // Excluir Nota de Crédito
-app.delete('/api/nota_credito/:id', async (req, res) => {
+app.delete('/api/nota_credito_160368_2026/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    await pool.query('DELETE FROM nota_credito WHERE id = $1', [id]);
+    await pool.query('DELETE FROM nota_credito_160368_2026 WHERE id = $1', [id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -338,12 +338,12 @@ app.delete('/api/nota_credito/:id', async (req, res) => {
 // ================== SubNC (Reforço de NC) ==================
 
 // Adicionar SubNC
-app.post('/api/nota_credito/:id/subnc', async (req, res) => {
+app.post('/api/nota_credito_160368_2026/:id/subnc', async (req, res) => {
   const nc_id = req.params.id;
   const { nc, data, desc, valor } = req.body;
   const descFinal = desc || '';
   const query = `
-    INSERT INTO subnc (nc_id, nc, data, "desc", valor)
+    INSERT INTO subnc_160368_2026 (nc_id, nc, data, "desc", valor)
     VALUES ($1, $2, $3, $4, $5)
     RETURNING *
   `;
@@ -357,11 +357,11 @@ app.post('/api/nota_credito/:id/subnc', async (req, res) => {
 });
 
 // Listar SubNCs de uma NC
-app.get('/api/nota_credito/:id/subncs', async (req, res) => {
+app.get('/api/nota_credito_160368_2026/:id/subncs', async (req, res) => {
   const nc_id = req.params.id;
   try {
     const { rows } = await pool.query(
-      'SELECT * FROM subnc WHERE nc_id = $1 ORDER BY data DESC',
+      'SELECT * FROM subnc_160368_2026 WHERE nc_id = $1 ORDER BY data DESC',
       [nc_id]
     );
     res.json(rows);
@@ -371,12 +371,12 @@ app.get('/api/nota_credito/:id/subncs', async (req, res) => {
 });
 
 // Editar SubNC
-app.put('/api/nota_credito/:id/subnc/:subncId', async (req, res) => {
+app.put('/api/nota_credito_160368_2026/:id/subnc/:subncId', async (req, res) => {
   const { id, subncId } = req.params;
   const { nc, data, desc, descricao, valor } = req.body;
   const descFinal = desc || descricao || '';
   const query = `
-    UPDATE subnc SET nc = $1, data = $2, "desc" = $3, valor = $4
+    UPDATE subnc_160368_2026 SET nc = $1, data = $2, "desc" = $3, valor = $4
     WHERE id = $5 AND nc_id = $6
     RETURNING *
   `;
@@ -390,10 +390,10 @@ app.put('/api/nota_credito/:id/subnc/:subncId', async (req, res) => {
 });
 
 // Excluir SubNC
-app.delete('/api/nota_credito/:id/subnc/:subncId', async (req, res) => {
+app.delete('/api/nota_credito_160368_2026/:id/subnc/:subncId', async (req, res) => {
   const { id, subncId } = req.params;
   try {
-    await pool.query('DELETE FROM subnc WHERE id = $1 AND nc_id = $2', [subncId, id]);
+    await pool.query('DELETE FROM subnc_160368_2026 WHERE id = $1 AND nc_id = $2', [subncId, id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -406,7 +406,7 @@ app.delete('/api/nota_credito/:id/subnc/:subncId', async (req, res) => {
 app.post('/api/nes', async (req, res) => {
   const { nc_id, numero, cnpj, valor, req: reqNe, nup } = req.body;
   const query = `
-    INSERT INTO nota_empenhos (nc_id, numero, cnpj, valor, req, nup, dataInclusao)
+    INSERT INTO nota_empenho_160368_2026 (nc_id, numero, cnpj, valor, req, nup, dataInclusao)
     VALUES ($1, $2, $3, $4, $5, $6, NOW())
     RETURNING *
   `;
@@ -422,7 +422,7 @@ app.post('/api/nes', async (req, res) => {
 // Listar todas NEs
 app.get('/api/nes', async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM nota_empenhos ORDER BY dataInclusao DESC');
+    const { rows } = await pool.query('SELECT * FROM nota_empenho_160368_2026 ORDER BY dataInclusao DESC');
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -433,7 +433,7 @@ app.get('/api/nes', async (req, res) => {
 app.get('/api/nes/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const { rows } = await pool.query('SELECT * FROM nota_empenhos WHERE id = $1', [id]);
+    const { rows } = await pool.query('SELECT * FROM nota_empenho_160368_2026 WHERE id = $1', [id]);
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -444,7 +444,7 @@ app.get('/api/nes/:id', async (req, res) => {
 app.get('/api/nes/nc/:nc_id', async (req, res) => {
   const { nc_id } = req.params;
   try {
-    const { rows } = await pool.query('SELECT * FROM nota_empenhos WHERE nc_id = $1 ORDER BY dataInclusao DESC', [nc_id]);
+    const { rows } = await pool.query('SELECT * FROM nota_empenho_160368_2026 WHERE nc_id = $1 ORDER BY dataInclusao DESC', [nc_id]);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -456,7 +456,7 @@ app.put('/api/nes/:id', async (req, res) => {
   const { id } = req.params;
   const { nc_id, numero, cnpj, valor, req: reqNe, nup } = req.body;
   const query = `
-    UPDATE nota_empenhos SET
+    UPDATE nota_empenho_160368_2026 SET
       nc_id = $1, numero = $2, cnpj = $3, valor = $4, req = $5, nup = $6
     WHERE id = $7 RETURNING *
   `;
@@ -473,7 +473,7 @@ app.put('/api/nes/:id', async (req, res) => {
 app.delete('/api/nes/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    await pool.query('DELETE FROM nota_empenhos WHERE id = $1', [id]);
+    await pool.query('DELETE FROM nota_empenho_160368_2026 WHERE id = $1', [id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -485,11 +485,11 @@ app.delete('/api/nes/:id', async (req, res) => {
 // CREATE TABLE ne_lancamentos (id SERIAL PRIMARY KEY, ne_id INTEGER NOT NULL REFERENCES nota_empenhos(id) ON DELETE CASCADE, tipo VARCHAR(12) NOT NULL CHECK (tipo IN ('reforco', 'anulacao')), valor NUMERIC(15,2) NOT NULL, descricao VARCHAR(255), data TIMESTAMP NOT NULL DEFAULT NOW());
 
 // Listar lançamentos de uma NE (normaliza tipo para lanc-reforco/lanc-anulacao)
-app.get('/api/nes/:ne_id/lancamentos', async (req, res) => {
+app.get('/api/nes/:ne_id/lancamentos_160368_2026', async (req, res) => {
   const { ne_id } = req.params;
   try {
     const { rows } = await pool.query(
-      'SELECT * FROM ne_lancamentos WHERE ne_id = $1 ORDER BY data ASC', [ne_id]);
+      'SELECT * FROM ne_lancamentos_160368_2026 WHERE ne_id = $1 ORDER BY data ASC', [ne_id]);
     const result = rows.map(lanc => ({
       ...lanc,
       tipo: lanc.tipo === 'reforco' ? 'lanc-reforco'
@@ -501,7 +501,7 @@ app.get('/api/nes/:ne_id/lancamentos', async (req, res) => {
 });
 
 // Adicionar lançamento (reforço/anulação) em uma NE (NÃO altera valor da NE!)
-app.post('/api/nes/:ne_id/lancamentos', async (req, res) => {
+app.post('/api/nes/:ne_id/lancamentos_160368_2026', async (req, res) => {
   const { ne_id } = req.params;
   let { tipo, valor, descricao } = req.body;
   if (tipo === 'lanc-reforco') tipo = 'reforco';
@@ -510,10 +510,10 @@ app.post('/api/nes/:ne_id/lancamentos', async (req, res) => {
   if (!['reforco','anulacao'].includes(tipo)) return res.status(400).json({ error: 'Tipo inválido.' });
   try {
     const { rows: lancRows } = await pool.query(
-      'INSERT INTO ne_lancamentos (ne_id, tipo, valor, descricao) VALUES ($1, $2, $3, $4) RETURNING *',
+      'INSERT INTO ne_lancamentos_160368_2026 (ne_id, tipo, valor, descricao) VALUES ($1, $2, $3, $4) RETURNING *',
       [ne_id, tipo, valor, descricao || null]
     );
-    const { rows: neRows } = await pool.query('SELECT * FROM nota_empenhos WHERE id = $1', [ne_id]);
+    const { rows: neRows } = await pool.query('SELECT * FROM nota_empenho_160368_2026 WHERE id = $1', [ne_id]);
     const lancRet = {
       ...lancRows[0],
       tipo: lancRows[0].tipo === 'reforco' ? 'lanc-reforco'
@@ -525,14 +525,14 @@ app.post('/api/nes/:ne_id/lancamentos', async (req, res) => {
 });
 
 // Excluir lançamento de NE
-app.delete('/api/nes/:ne_id/lancamentos/:lanc_id', async (req, res) => {
+app.delete('/api/nes/:ne_id/lancamentos_160368_2026/:lanc_id', async (req, res) => {
   const { ne_id, lanc_id } = req.params;
   try {
     const { rows: lancRows } = await pool.query(
-      'SELECT * FROM ne_lancamentos WHERE id = $1 AND ne_id = $2', [lanc_id, ne_id]);
+      'SELECT * FROM ne_lancamentos_160368_2026 WHERE id = $1 AND ne_id = $2', [lanc_id, ne_id]);
     if (!lancRows.length) return res.status(404).json({ error: 'Lançamento não encontrado.' });
-    await pool.query('DELETE FROM ne_lancamentos WHERE id = $1 AND ne_id = $2', [lanc_id, ne_id]);
-    const { rows: neRows } = await pool.query('SELECT * FROM nota_empenhos WHERE id = $1', [ne_id]);
+    await pool.query('DELETE FROM ne_lancamentos_160368_2026 WHERE id = $1 AND ne_id = $2', [lanc_id, ne_id]);
+    const { rows: neRows } = await pool.query('SELECT * FROM nota_empenho_160368_2026 WHERE id = $1', [ne_id]);
     const lancTipo = lancRows[0].tipo === 'reforco' ? 'lanc-reforco'
                    : lancRows[0].tipo === 'anulacao' ? 'lanc-anulacao'
                    : lancRows[0].tipo;
@@ -547,8 +547,8 @@ app.delete('/api/nes/:ne_id/lancamentos/:lanc_id', async (req, res) => {
 app.get('/api/grafico-por-ug', async (req, res) => {
   const query = `
     SELECT ug.nome, SUM(nc.valor) as total
-    FROM unidade_gestora ug
-    JOIN nota_credito nc ON nc.ug_id = ug.id
+    FROM unidade_gestora_160368_2026 ug
+    JOIN nota_credito_160368_2026 nc ON nc.ug_id = ug.id
     GROUP BY ug.nome
   `;
   try {
@@ -564,7 +564,7 @@ app.get('/api/saldo-ug/:ug_id', async (req, res) => {
   const { ug_id } = req.params;
   try {
     const { rows } = await pool.query(
-      `SELECT SUM(valor) AS total FROM nota_credito WHERE ug_id = $1`,
+      `SELECT SUM(valor) AS total FROM nota_credito_160368_2026 WHERE ug_id = $1`,
       [ug_id]
     );
     res.json({ total: rows[0]?.total || 0 });
